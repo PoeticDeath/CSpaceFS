@@ -3,6 +3,7 @@
 #include <iostream>
 #include <map>
 #include <time.h>
+#include <string>
 
 void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& len) {
 	if (len % 2 != 0) {
@@ -53,6 +54,154 @@ int settablesize(unsigned long sectorsize, unsigned& tablesize, unsigned& extrat
 	return 0;
 }
 
+void resetcloc(unsigned long long& cloc, char*& cblock, unsigned long long clen, std::string& str0, std::string& str1, std::string& str2, unsigned step) {
+	std::string str = std::string(cblock + strlen(cblock) - cloc, cloc);
+	switch (step) {
+		case 0:
+			str0 = str;
+			break;
+		case 1:
+			str1 = str;
+			break;
+		case 2:
+			str2 = str;
+			break;
+	}
+	cloc = 0;
+	cblock = (char*)calloc(clen, 1);
+}
+
+void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std::string str0, std::string str1, std::string str2, std::string rstr, std::map<std::string, std::map<unsigned long, bool>>& partlist, std::map<std::string, bool>& list) {
+	if (str0 == "") {
+		return;
+	}
+	if (range == 0) {
+		if (step == 0) {
+			list[str0] = true;
+			//std::cout << str0 << std::endl;
+		}
+		else {
+			for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < std::strtoul(str2.c_str(), 0, 10); i++) {
+				partlist[str0][i] = true;
+			}
+			//std::cout << str0 << ";" << str1 << ";" << str2 << std::endl;
+		}
+	}
+	else {
+		for (unsigned long long i = std::strtoull(rstr.c_str(), 0, 10); i < std::strtoull(str0.c_str(), 0, 10); i++) {
+			list[std::to_string(i)] = true;
+		}
+		//std::cout << rstr << "-" << str0;
+		if (step != 0) {
+			for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < std::strtoul(str2.c_str(), 0, 10); i++) {
+				partlist[str0][i] = true;
+			}
+			//std::cout << ";" << str1 << ";" << str2;
+		}
+		//std::cout << std::endl;
+	}
+}
+
+int findblock(unsigned long sectorsize, unsigned long long disksize, char*& tablestr, char*& block, unsigned long long& blockstrlen, unsigned long blocksize) {
+	unsigned long long tablelen = 0;
+	for (unsigned long long i = 0; i < strlen(tablestr); i++) {
+		if ((tablestr[i] & 0xff) == 46) {
+			tablelen = i + 1;
+		}
+	}
+	unsigned long long clen = 256;
+	char* cblock = (char*)calloc(clen, 1);
+	char* alc = NULL;
+	unsigned long long cloc = 0;
+	std::string str0;
+	std::string str1;
+	std::string str2;
+	std::string rstr;
+	unsigned step = 0;
+	unsigned range = 0;
+	std::map<std::string, std::map<unsigned long, bool>> partlist;
+	std::map<std::string, bool> list;
+	for (unsigned long long i = 0; i < tablelen; i++) {
+		switch (tablestr[i] & 0xff) {
+			case 59: //;
+				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				step++;
+				break;
+			case 46: //.
+				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				addtopartlist(sectorsize, range, step, str0, str1, str2, rstr, partlist, list);
+				step = 0;
+				range = 0;
+				break;
+			case 45: //-
+				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				step = 0;
+				range++;
+				rstr = str0;
+				break;
+			case 44: //,
+				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				addtopartlist(sectorsize, range, step, str0, str1, str2, rstr, partlist, list);
+				step = 0;
+				range = 0;
+				break;
+			default: //0-9
+				if (cloc > clen - 2) {
+					clen += 256;
+					alc = (char*)realloc(cblock, clen);
+					if (alc == NULL) {
+						free(cblock);
+						return 1;
+					}
+					cblock = alc;
+					alc = NULL;
+				}
+				cblock[cloc] = tablestr[i];
+				cloc++;
+				break;
+		}
+	}
+	unsigned long bytecount = 0;
+	unsigned long o = 0;
+	std::string s;
+	for (unsigned long long i = 0; i < disksize / sectorsize; i++) {
+		if (list[std::to_string(i)] == false) {
+			o = 0;
+			while (bytecount < blocksize && o < sectorsize) {
+				if (partlist[std::to_string(i)][o] == false) {
+					bytecount++;
+				}
+				else {
+					o++;
+					bytecount = 0;
+				}
+				if (blocksize > sectorsize - o) {
+					break;
+				}
+			}
+			if (bytecount == blocksize) {
+				if (blocksize % sectorsize != 0) {
+					s = std::to_string(i) + ";" + std::to_string(o) + ";" + std::to_string(o + bytecount);
+				}
+				else {
+					s = std::to_string(i);
+				}
+				break;
+			}
+		}
+	}
+	if (s == "") {
+		return 1;
+	}
+	block = (char*)calloc(strlen(s.c_str()), 1);
+	unsigned long long i = 0;
+	for (; i < strlen(s.c_str()); i++) {
+		block[i] = s[i];
+	}
+	blockstrlen = i;
+	return 0;
+}
+
 int simptable(HANDLE& hDisk, unsigned long sectorsize, unsigned& tablesize, unsigned& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::map<unsigned, unsigned> emap, std::map<unsigned, unsigned> dmap) {
 	_LARGE_INTEGER seek = { 0 };
 	SetFilePointerEx(hDisk, seek, NULL, 0);
@@ -85,7 +234,7 @@ int simptable(HANDLE& hDisk, unsigned long sectorsize, unsigned& tablesize, unsi
 			table[tablelen + filenamesizes + 7 + (i * 35) + j] = fileinfo[(i * 35) + j];
 		}
 	}
-	decode(dmap, tablestr, tablelen * 2);
+	decode(dmap, tablestr, tablelen);
 	DWORD w;
 	WriteFile(hDisk, table, ((tablelen + filenamesizes + 7 + (filenamecount * 35) + 511) / 512) * 512, &w, NULL);
 	if (w != ((tablelen + filenamesizes + 7 + (filenamecount * 35) + 511) / 512) * 512) {
@@ -291,8 +440,14 @@ int main(int argc, char* argv[]) {
 	//std::cout << "Fileinfo size: " << filenamecount * 35 << std::endl;
 	//std::cout << "Fileinfo: " << std::string(fileinfo, filenamecount * 35) << std::endl;
 
-	createfile((PWSTR) "/Test.bin", 448, filenamecount, fileinfo, filenames, tablestr);
-	simptable(hDisk, sectorsize, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
+	//createfile((PWSTR) "/Test.bin", 448, filenamecount, fileinfo, filenames, tablestr);
+	//simptable(hDisk, sectorsize, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
+
+	char* block = NULL;
+	unsigned long blocksize = 2097152;
+	unsigned long long blockstrlen = 0;
+	findblock(sectorsize, disksize.QuadPart, tablestr, block, blockstrlen, blocksize);
+	std::cout << "Found block at: " << std::string(block, blockstrlen) << std::endl;
 
 	return 0;
 }
