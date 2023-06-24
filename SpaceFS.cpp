@@ -83,27 +83,26 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 			list[str0] = 0;
 			//std::cout << str0 << std::endl;
 		}
-		else {
-			for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < std::strtoul(str2.c_str(), 0, 10); i++) {
-				partlist[str0][i / 64] |= static_cast<unsigned long long>(1) << i % 64;
-				list[str0]--;
-			}
-			//std::cout << str0 << ";" << str1 << ";" << str2 << std::endl;
-		}
 	}
 	else {
 		for (unsigned long long i = std::strtoull(rstr.c_str(), 0, 10); i < std::strtoull(str0.c_str(), 0, 10); i++) {
 			list[std::to_string(i)] = 0;
 		}
-		//std::cout << rstr << "-" << str0;
-		if (step != 0) {
-			for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < std::strtoul(str2.c_str(), 0, 10); i++) {
+		//std::cout << rstr << "-" << str0 << ",";
+	}
+	if (step != 0) {
+		for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < std::strtoul(str2.c_str(), 0, 10); i++) {
+			if (i / 64 < std::strtoul(str2.c_str(), 0, 10) / 64) {
+				partlist[str0][i / 64] |= 0xffffffffffffffff << i % 64;
+				list[str0] -= 64 - i % 64;
+				i += 63 - i % 64;
+			}
+			else {
 				partlist[str0][i / 64] |= static_cast<unsigned long long>(1) << i % 64;
 				list[str0]--;
 			}
-			//std::cout << ";" << str1 << ";" << str2;
 		}
-		//std::cout << std::endl;
+		//std::cout << str0 << ";" << str1 << ";" << str2 << std::endl;
 	}
 }
 
