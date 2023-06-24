@@ -172,7 +172,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, char*& tabl
 	for (unsigned long long i = 0; i < disksize / sectorsize; i++) {
 		if (list[std::to_string(i)] >= blocksize) {
 			o = 0;
-			if (blocksize == sectorsize || list[std::to_string(i)] == sectorsize) {
+			if (list[std::to_string(i)] == sectorsize) {
 				bytecount = blocksize;
 			}
 			while (bytecount < blocksize && o < sectorsize) {
