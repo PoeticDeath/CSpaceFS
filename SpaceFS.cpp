@@ -71,30 +71,35 @@ void resetcloc(unsigned long long& cloc, char*& cblock, unsigned long long clen,
 	cblock = (char*)calloc(clen, 1);
 }
 
-void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std::string str0, std::string str1, std::string str2, std::string rstr, std::map<std::string, std::map<unsigned long, bool>>& partlist, std::map<std::string, bool>& list) {
+void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std::string str0, std::string str1, std::string str2, std::string rstr, std::map<std::string, std::map<unsigned long, unsigned long long>>& partlist, std::map<std::string, unsigned long>& list) {
 	if (str0 == "") {
 		return;
 	}
+	if (list[str0] == NULL) {
+		list[str0] = sectorsize;
+	}
 	if (range == 0) {
 		if (step == 0) {
-			list[str0] = true;
+			list[str0] = 0;
 			//std::cout << str0 << std::endl;
 		}
 		else {
 			for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < std::strtoul(str2.c_str(), 0, 10); i++) {
-				partlist[str0][i] = true;
+				partlist[str0][i / 64] |= static_cast<unsigned long long>(1) << i % 64;
+				list[str0]--;
 			}
 			//std::cout << str0 << ";" << str1 << ";" << str2 << std::endl;
 		}
 	}
 	else {
 		for (unsigned long long i = std::strtoull(rstr.c_str(), 0, 10); i < std::strtoull(str0.c_str(), 0, 10); i++) {
-			list[std::to_string(i)] = true;
+			list[std::to_string(i)] = 0;
 		}
 		//std::cout << rstr << "-" << str0;
 		if (step != 0) {
 			for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < std::strtoul(str2.c_str(), 0, 10); i++) {
-				partlist[str0][i] = true;
+				partlist[str0][i / 64] |= static_cast<unsigned long long>(1) << i % 64;
+				list[str0]--;
 			}
 			//std::cout << ";" << str1 << ";" << str2;
 		}
@@ -119,8 +124,8 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, char*& tabl
 	std::string rstr;
 	unsigned step = 0;
 	unsigned range = 0;
-	std::map<std::string, std::map<unsigned long, bool>> partlist;
-	std::map<std::string, bool> list;
+	std::map<std::string, std::map<unsigned long, unsigned long long>> partlist;
+	std::map<std::string, unsigned long> list;
 	for (unsigned long long i = 0; i < tablelen; i++) {
 		switch (tablestr[i] & 0xff) {
 			case 59: //;
@@ -165,10 +170,13 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, char*& tabl
 	unsigned long o = 0;
 	std::string s;
 	for (unsigned long long i = 0; i < disksize / sectorsize; i++) {
-		if (list[std::to_string(i)] == false) {
+		if (list[std::to_string(i)] >= blocksize) {
 			o = 0;
+			if (blocksize == sectorsize || list[std::to_string(i)] == sectorsize) {
+				bytecount = blocksize;
+			}
 			while (bytecount < blocksize && o < sectorsize) {
-				if (partlist[std::to_string(i)][o] == false) {
+				if ((partlist[std::to_string(i)][o / 64] & static_cast<unsigned long long>(1) << o % 64) == 0) {
 					bytecount++;
 				}
 				else {
