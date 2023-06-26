@@ -36,6 +36,28 @@ void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long 
 	bytes = str;
 }
 
+void cleantablestr(char* charmap, char*& tablestr) {
+	unsigned long long i = 0;
+	unsigned b = 0;
+	for (; i < strlen(tablestr); i++) {
+		b = 1;
+		for (unsigned o = 0; o < strlen(charmap); o++) {
+			if (tablestr[i] == charmap[o]) {
+				b = 0;
+				break;
+			}
+		}
+		if (b == 1) {
+			break;
+		}
+	}
+	char* alc = (char*)calloc(i + 1, 1);
+	for (unsigned long long o = 0; o < i; o++) {
+		alc[o] = tablestr[o];
+	}
+	tablestr = alc;
+}
+
 int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned long& extratablesize, char*& table) {
 	extratablesize = (tablesize * sectorsize);
 	char* alc = NULL;
@@ -297,7 +319,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 	return 0;
 }
 
-int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long tablesize, char*& tablestr, unsigned long long index, unsigned long long size) {
+int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long tablesize, char* charmap, char*& tablestr, unsigned long long index, unsigned long long size) {
 	char* block = NULL;
 	unsigned long long blockstrlen = 0;
 	unsigned long long o = 0;
@@ -329,6 +351,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 			index++;
 		}
 		o = 1;
+		cleantablestr(charmap, tablestr);
 	}
 	if (size % sectorsize != 0) {
 		findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, size % sectorsize);
@@ -350,7 +373,65 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 			alc2[index + blockstrlen + o + i] = alc1[i];
 		}
 		tablestr = alc2;
+		cleantablestr(charmap, tablestr);
 	}
+	return 0;
+}
+
+int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned long long index, unsigned long long filesize, unsigned long long size) {
+	unsigned long long pindex = getpindex(index, filesize, tablestr);
+	char* alc1 = (char*)calloc(strlen(tablestr) - index, 1);
+	for (unsigned long long i = 0; i < strlen(tablestr) - index; i++) {
+		alc1[i] = tablestr[index + i];
+	}
+	char* alc2 = (char*)calloc(pindex + 1, 1);
+	for (unsigned long long i = 0; i < pindex; i++) {
+		alc2[i] = tablestr[index - pindex + i];
+	}
+	if ((filesize - size) % sectorsize == 0) { // Dealloc entire block out of alc2
+		for (unsigned long long i = 0; i < pindex + 1; i++) {
+			if ((alc2[pindex - i] & 0xff) == 44) {
+				alc2[pindex - i] = 0;
+				break;
+			}
+			alc2[pindex - i] = 0;
+		}
+	}
+	else if (filesize % sectorsize == 0) { // Realloc full block as part block
+		unsigned long long alc2len = strlen(alc2);
+		char part[4] = ";0;";
+		for (unsigned long long i = 0; i < 3; i++) {
+			alc2[alc2len + i] = part[i];
+		}
+		for (unsigned long long i = 0; i < strlen(std::to_string(sectorsize - size % sectorsize).c_str()); i++) {
+			alc2[alc2len + 3 + i] = std::to_string(sectorsize - size % sectorsize).c_str()[i];
+		}
+		alc2[alc2len + 3 + strlen(std::to_string(sectorsize - size % sectorsize).c_str())] = 0;
+	}
+	else { // Realloc part block as smaller part block
+		unsigned long long alc2partlen = 0;
+		for (;  alc2partlen < strlen(alc2); alc2partlen++) {
+			if ((alc2[strlen(alc2) - alc2partlen] & 0xff) == 59) {
+				break;
+			}
+		}
+		unsigned long alc2part = std::strtoul(alc2 + strlen(alc2) - alc2partlen + 1, 0, 10);
+		for (unsigned long long i = 0; i < strlen(std::to_string(alc2part - size).c_str()); i++) {
+			alc2[strlen(alc2) - alc2partlen + 1 + i] = std::to_string(alc2part - size)[i];
+		}
+		alc2[strlen(alc2) - alc2partlen + strlen(std::to_string(alc2part - size).c_str()) + 1] = 0;
+	}
+	unsigned long long off = 0;
+	for (; off < strlen(alc2); off++) {
+		if ((alc2[off] & 0xff) == 0) {
+			break;
+		}
+		tablestr[index - pindex + off] = alc2[off];
+	}
+	for (unsigned long long i = 0; i < strlen(alc1); i++) {
+		tablestr[index - pindex + off + i] = alc1[i];
+	}
+	cleantablestr(charmap, tablestr);
 	return 0;
 }
 
@@ -423,7 +504,7 @@ int simptable(HANDLE& hDisk, unsigned long sectorsize, unsigned long& tablesize,
 	return 0;
 }
 
-int createfile(PWSTR filename, unsigned mode, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char*& tablestr) {
+int createfile(PWSTR filename, unsigned mode, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char* charmap, char*& tablestr) {
 	char* alc = (char*)realloc(fileinfo, (filenamecount + 1) * 35);
 	if (alc == NULL) {
 		return 1;
@@ -490,6 +571,7 @@ int createfile(PWSTR filename, unsigned mode, unsigned long long& filenamecount,
 	}
 	free(gum);
 	filenamecount++;
+	cleantablestr(charmap, tablestr);
 	return 0;
 }
 
@@ -625,13 +707,15 @@ int main(int argc, char* argv[]) {
 	//std::cout << "Fileinfo size: " << filenamecount * 35 << std::endl;
 	//std::cout << "Fileinfo: " << std::string(fileinfo, filenamecount * 35) << std::endl;
 
-	createfile((PWSTR) "/Test.bin", 448, filenamecount, fileinfo, filenames, tablestr);
-	alloc(sectorsize, disksize.QuadPart, tablesize, tablestr, getfilenameindex((PWSTR) "/Test.bin", filenames, tablestr, filenamecount), 2097152*3+512);
-	std::cout << tablestr << std::endl;
+	createfile((PWSTR) "/Test.bin", 448, filenamecount, fileinfo, filenames, charmap, tablestr);
+	alloc(sectorsize, disksize.QuadPart, tablesize, charmap, tablestr, getfilenameindex((PWSTR) "/Test.bin", filenames, tablestr, filenamecount), 2097152*3+512);
 	unsigned long long index = getfilenameindex((PWSTR) "/Test.bin", filenames, tablestr, filenamecount);
 	unsigned long long filesize = 0;
 	getfilesize(sectorsize, index, tablestr, filesize);
-	std::cout << filesize << std::endl;
+	std::cout << filesize << " " << tablestr << std::endl;
+	dealloc(sectorsize, charmap, tablestr, index, filesize, 512);
+	getfilesize(sectorsize, getfilenameindex((PWSTR) "/Test.bin", filenames, tablestr, filenamecount), tablestr, filesize);
+	std::cout << filesize << " " << tablestr << std::endl;
 	simptable(hDisk, sectorsize, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
 
 	return 0;
