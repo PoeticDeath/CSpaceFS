@@ -610,6 +610,175 @@ int createfile(PWSTR filename, unsigned mode, unsigned long long& filenamecount,
 	return 0;
 }
 
+void read(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksize, unsigned long long start, unsigned step, unsigned range, unsigned long long len, std::string str0, std::string str1, std::string str2, std::string rstr, unsigned long long& rblock, unsigned long long& block, char*& buf) {
+	LARGE_INTEGER loc;
+	DWORD r;
+	if (range != 0) {
+		for (unsigned long long p = std::strtoull(rstr.c_str(), 0, 10); p < std::strtoull(str0.c_str(), 0, 10) + 1; p++) {
+			if (start / sectorsize <= block && block < (start + len + sectorsize - 1) / sectorsize) {
+				if (start / sectorsize == block) { // Start block
+					if (step != 0) {
+						loc.QuadPart = disksize - (p * sectorsize + sectorsize) + start % sectorsize + std::strtoul(str1.c_str(), 0, 10);
+						SetFilePointerEx(hDisk, loc, NULL, 0);
+						if (len - start % sectorsize < std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10)) {
+							ReadFile(hDisk, buf, len, &r, NULL);
+							rblock += len;
+						}
+						else {
+							ReadFile(hDisk, buf, std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &r, NULL);
+							rblock += std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize;
+						}
+					}
+					else {
+						loc.QuadPart = disksize - (p * sectorsize + sectorsize) + start % sectorsize;
+						SetFilePointerEx(hDisk, loc, NULL, 0);
+						if (sectorsize - start % sectorsize < sectorsize) {
+							ReadFile(hDisk, buf, sectorsize - start % sectorsize, &r, NULL);
+							rblock += sectorsize - start % sectorsize;
+						}
+						else {
+							ReadFile(hDisk, buf, sectorsize - start % sectorsize, &r, NULL);
+							rblock += sectorsize - start % sectorsize;
+						}
+					}
+				}
+				else if (len - rblock <= sectorsize) { // End block
+					if (step != 0) {
+						loc.QuadPart = disksize - (p * sectorsize + sectorsize) + std::strtoul(str1.c_str(), 0, 10);
+					}
+					else {
+						loc.QuadPart = disksize - (p * sectorsize + sectorsize);
+					}
+					SetFilePointerEx(hDisk, loc, NULL, 0);
+					ReadFile(hDisk, buf + rblock, len - rblock, &r, NULL);
+					rblock = len;
+				}
+				else { // In between blocks
+					loc.QuadPart = disksize - (p * sectorsize + sectorsize);
+					SetFilePointerEx(hDisk, loc, NULL, 0);
+					ReadFile(hDisk, buf + rblock, sectorsize, &r, NULL);
+					rblock += sectorsize;
+				}
+			}
+			block++;
+		}
+		block--;
+		return;
+	}
+	if (start / sectorsize <= block && block < (start + len + sectorsize - 1) / sectorsize) {
+		if (start / sectorsize == block) { // Start block
+			if (step != 0) {
+				loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize) + start % sectorsize + std::strtoul(str1.c_str(), 0, 10);
+				SetFilePointerEx(hDisk, loc, NULL, 0);
+				if (len - start % sectorsize < std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10)) {
+					ReadFile(hDisk, buf, len, &r, NULL);
+					rblock += len;
+				}
+				else {
+					ReadFile(hDisk, buf, std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &r, NULL);
+					rblock += std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize;
+				}
+			}
+			else {
+				loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize) + start % sectorsize;
+				SetFilePointerEx(hDisk, loc, NULL, 0);
+				if (sectorsize - start % sectorsize < sectorsize) {
+					ReadFile(hDisk, buf, sectorsize - start % sectorsize, &r, NULL);
+					rblock += sectorsize - start % sectorsize;
+				}
+				else {
+					ReadFile(hDisk, buf, sectorsize - start % sectorsize, &r, NULL);
+					rblock += sectorsize - start % sectorsize;
+				}
+			}
+		}
+		else if (len - rblock <= sectorsize) { // End block
+			if (step != 0) {
+				loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize) + std::strtoul(str1.c_str(), 0, 10);
+			}
+			else {
+				loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize);
+			}
+			SetFilePointerEx(hDisk, loc, NULL, 0);
+			ReadFile(hDisk, buf + rblock, len - rblock, &r, NULL);
+			rblock = len;
+		}
+		else { // In between blocks
+			loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize);
+			SetFilePointerEx(hDisk, loc, NULL, 0);
+			ReadFile(hDisk, buf + rblock, sectorsize, &r, NULL);
+			rblock += sectorsize;
+		}
+	}
+}
+
+int readfile(HANDLE hDisk, unsigned long long sectorsize, unsigned long long index, unsigned long long start, unsigned long long len, unsigned long long disksize, char* tablestr, char*& buf) {
+	unsigned long long pindex = getpindex(index, tablestr);
+	unsigned long long filesize = 0;
+	getfilesize(sectorsize, index, tablestr, filesize);
+	len = min(len + start, filesize - start);
+	index++;
+	pindex++;
+	char* alc = (char*)calloc(pindex + 1, 1);
+	for (unsigned long long i = 0; i < pindex; i++) {
+		alc[i] = tablestr[index - pindex + i];
+	}
+	unsigned long long block = 0;
+	unsigned long long rblock = 0;
+	char* alc1 = NULL;
+	unsigned long long clen = 256;
+	char* cblock = (char*)calloc(clen, 1);
+	unsigned long long cloc = 0;
+	std::string str0;
+	std::string str1;
+	std::string str2;
+	std::string rstr;
+	unsigned step = 0;
+	unsigned range = 0;
+	for (unsigned long long i = 0; i < pindex; i++) {
+		switch (alc[i] & 0xff) {
+		case 59: //;
+			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			step++;
+			break;
+		case 46: //.
+			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			read(hDisk, sectorsize, disksize, start, step, range, len, str0, str1, str2, rstr, rblock, block, buf);
+			step = 0;
+			range = 0;
+			break;
+		case 45: //-
+			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			step = 0;
+			range++;
+			rstr = str0;
+			break;
+		case 44: //,
+			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			read(hDisk, sectorsize, disksize, start, step, range, len, str0, str1, str2, rstr, rblock, block, buf);
+			step = 0;
+			range = 0;
+			block++;
+			break;
+		default: //0-9
+			if (cloc > clen - 2) {
+				clen += 256;
+				alc1 = (char*)realloc(cblock, clen);
+				if (alc1 == NULL) {
+					free(cblock);
+					return 1;
+				}
+				cblock = alc1;
+				alc1 = NULL;
+			}
+			cblock[cloc] = alc[i];
+			cloc++;
+			break;
+		}
+	}
+	return 0;
+}
+
 int main(int argc, char* argv[]) {
 	if (argc == 1) {
 		std::cout << "Usage: SpaceFS <disk> <format sectorsize>" << std::endl;
@@ -742,16 +911,19 @@ int main(int argc, char* argv[]) {
 	//std::cout << "Fileinfo size: " << filenamecount * 35 << std::endl;
 	//std::cout << "Fileinfo: " << std::string(fileinfo, filenamecount * 35) << std::endl;
 
-	createfile((PWSTR) "/Test.bin", 448, filenamecount, fileinfo, filenames, charmap, tablestr);
-	alloc(sectorsize, disksize.QuadPart, tablesize, charmap, tablestr, getfilenameindex((PWSTR) "/Test.bin", filenames, tablestr, filenamecount), 2097152*3+512);
-	unsigned long long index = getfilenameindex((PWSTR) "/Test.bin", filenames, tablestr, filenamecount);
-	unsigned long long filesize = 0;
-	getfilesize(sectorsize, index, tablestr, filesize);
-	std::cout << filesize << " " << tablestr << std::endl;
-	dealloc(sectorsize, charmap, tablestr, index, filesize, 2097152*2+512);
-	getfilesize(sectorsize, getfilenameindex((PWSTR) "/Test.bin", filenames, tablestr, filenamecount), tablestr, filesize);
-	std::cout << filesize << " " << tablestr << std::endl;
-	simptable(hDisk, sectorsize, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
+	//createfile((PWSTR) "/Test.bin", 448, filenamecount, fileinfo, filenames, charmap, tablestr);
+	//alloc(sectorsize, disksize.QuadPart, tablesize, charmap, tablestr, getfilenameindex((PWSTR) "/Test.bin", filenames, tablestr, filenamecount), 2097152*3+512);
+	//unsigned long long index = getfilenameindex((PWSTR) "/Test.bin", filenames, tablestr, filenamecount);
+	//unsigned long long filesize = 0;
+	//getfilesize(sectorsize, index, tablestr, filesize);
+	//std::cout << filesize << " " << tablestr << std::endl;
+	//dealloc(sectorsize, charmap, tablestr, index, filesize, 2097152*2+512);
+	//getfilesize(sectorsize, getfilenameindex((PWSTR) "/Test.bin", filenames, tablestr, filenamecount), tablestr, filesize);
+	//std::cout << filesize << " " << tablestr << std::endl;
+	//simptable(hDisk, sectorsize, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
+	char* buf = (char*)calloc(2097152*3, 1);
+	readfile(hDisk, sectorsize, getfilenameindex((PWSTR) "/Test.bin", filenames, tablestr, filenamecount), 0, 2097152*3, disksize.QuadPart, tablestr, buf);
+	std::cout << buf << " " << buf+2097152 << " " << buf+4194304 << std::endl;
 
 	return 0;
 }
