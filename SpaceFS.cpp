@@ -789,7 +789,7 @@ int simptable(HANDLE& hDisk, unsigned long sectorsize, char* charmap, unsigned l
 	return 0;
 }
 
-int createfile(PWSTR filename, unsigned mode, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char* charmap, char*& tablestr) {
+int createfile(PWSTR filename, unsigned long mode, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char* charmap, char*& tablestr) {
 	char* alc = (char*)realloc(fileinfo, (filenamecount + 1) * 35);
 	if (alc == NULL) {
 		return 1;
@@ -832,9 +832,9 @@ int createfile(PWSTR filename, unsigned mode, unsigned long long& filenamecount,
 	memcpy(fileinfo + filenamecount * 24 + 8, &tim, 8);
 	memcpy(fileinfo + filenamecount * 24 + 16, &tim, 8);
 	char guidmodes[11] = { 0 };
-	unsigned gid;
-	unsigned uid;
-	unsigned winattrs;
+	unsigned long gid;
+	unsigned long uid;
+	unsigned long winattrs;
 	gid = uid = 545;
 	winattrs = 2048;
 	guidmodes[0] = (gid >> 16) & 0xff;
@@ -1113,6 +1113,77 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long index, u
 	return 0;
 }
 
+void chtime(char*& fileinfo, unsigned long long filenameindex, double& time, unsigned ch) { // First 24 bytes of fileinfo 0/35
+	unsigned o = 0;
+	if (ch == 2 || ch == 3) {
+		o = 8;
+	}
+	else if (ch == 4 || ch == 5) {
+		o = 16;
+	}
+	if (ch % 2 == 0) {
+		char tim[8] = { 0 };
+		memcpy(tim, fileinfo + filenameindex * 35 + o, 8);
+		char ti[8] = { 0 };
+		for (unsigned i = 0; i < 8; i++) {
+			ti[i] = tim[7 - i];
+		}
+		memcpy(&time, ti, 8);
+	}
+	else {
+		char ti[8] = { 0 };
+		memcpy(ti, &time, 8);
+		char tim[8] = { 0 };
+		for (unsigned i = 0; i < 8; i++) {
+			tim[i] = ti[7 - i];
+		}
+		memcpy(fileinfo + filenameindex * 35 + o, tim, 8);
+	}
+}
+
+void chgid(char*& fileinfo, unsigned long long filenameindex, unsigned long& gid, unsigned ch) { // Next three bytes of fileinfo 24/35
+	if (ch == 0) {
+		gid = (fileinfo[filenameindex * 35 + 24] & 0xff) << 16 | (fileinfo[filenameindex * 35 + 25] & 0xff) << 8 | fileinfo[filenameindex * 35 + 26] & 0xff;
+	}
+	else {
+		fileinfo[filenameindex * 35 + 24] = (gid >> 16) & 0xff;
+		fileinfo[filenameindex * 35 + 25] = (gid >> 8) & 0xff;
+		fileinfo[filenameindex * 35 + 26] = gid & 0xff;
+	}
+}
+
+void chuid(char*& fileinfo, unsigned long long filenameindex, unsigned long& uid, unsigned ch) { // Next two bytes of fileinfo 27/35
+	if (ch == 0) {
+		uid = (fileinfo[filenameindex * 35 + 27] & 0xff) << 8 | fileinfo[filenameindex * 35 + 28] & 0xff;
+	}
+	else {
+		fileinfo[filenameindex * 35 + 27] = (uid >> 8) & 0xff;
+		fileinfo[filenameindex * 35 + 28] = uid & 0xff;
+	}
+}
+
+void chmode(char*& fileinfo, unsigned long long filenameindex, unsigned long& mode, unsigned ch) { // Next two bytes of fileinfo 29/35
+	if (ch == 0) {
+		mode = (fileinfo[filenameindex * 35 + 29] & 0xff) << 8 | fileinfo[filenameindex * 35 + 30] & 0xff;
+	}
+	else {
+		fileinfo[filenameindex * 35 + 29] = (mode >> 8) & 0xff;
+		fileinfo[filenameindex * 35 + 30] = mode & 0xff;
+	}
+}
+
+void chwinattrs(char*& fileinfo, unsigned long long filenameindex, unsigned long& winattrs, unsigned ch) { // Last four bytes of fileinfo 31/35
+	if (ch == 0) {
+		winattrs = (fileinfo[filenameindex * 35 + 31] & 0xff) << 24 | (fileinfo[filenameindex * 35 + 32] & 0xff) << 16 | (fileinfo[filenameindex * 35 + 33] & 0xff) << 8 | fileinfo[filenameindex * 35 + 34] & 0xff;
+	}
+	else {
+		fileinfo[filenameindex * 35 + 31] = (winattrs >> 24) & 0xff;
+		fileinfo[filenameindex * 35 + 32] = (winattrs >> 16) & 0xff;
+		fileinfo[filenameindex * 35 + 33] = (winattrs >> 8) & 0xff;
+		fileinfo[filenameindex * 35 + 34] = winattrs & 0xff;
+	}
+}
+
 int main(int argc, char* argv[]) {
 	if (argc == 1) {
 		std::cout << "Usage: SpaceFS <disk> <format sectorsize>" << std::endl;
@@ -1266,5 +1337,23 @@ int main(int argc, char* argv[]) {
 	std::cout << tablestr << std::endl;
 	simptable(hDisk, sectorsize, charmap, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
 	std::cout << tablestr << std::endl;
+	unsigned long long filenameindex = 0;
+	unsigned long long filenamestrindex = 0;
+	double time = 0;
+	unsigned long gid = 0;
+	unsigned long uid = 0;
+	unsigned long mode = 16877;
+	unsigned long winattrs = 0;
+	getfilenameindex((PWSTR)"/Test.bin", filenames, filenamecount, filenameindex, filenamestrindex);
+	chtime(fileinfo, filenameindex, time, 1);
+	chtime(fileinfo, filenameindex, time, 3);
+	chtime(fileinfo, filenameindex, time, 5);
+	chgid(fileinfo, filenameindex, gid, 0);
+	chuid(fileinfo, filenameindex, uid, 0);
+	chmode(fileinfo, filenameindex, mode, 1);
+	chwinattrs(fileinfo, filenameindex, winattrs, 0);
+	std::cout << (time_t)time << std::endl;
+	std::cout << gid << " " << uid << " " << mode << " " << winattrs << std::endl;
+	simptable(hDisk, sectorsize, charmap, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
 	return 0;
 }
