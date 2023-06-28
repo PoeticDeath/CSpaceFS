@@ -474,30 +474,34 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 	return 0;
 }
 
-unsigned long long getfilenameindex(PWSTR filename, char* filenames, char* tablestr, unsigned long long filenamecount) {
-	unsigned long long p = 0;
-	unsigned long long o = 0;
-	for (; o < filenamecount;) {
+void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filenamecount, unsigned long long& filenameindex, unsigned long long& filenamestrindex) {
+	for (; filenameindex < filenamecount;) {
 		char file[256] = { 0 };
 		unsigned i = 0;
 		for (; i < 256; i++) {
-			if ((filenames[p + i] & 0xff) == 255 || (filenames[p + i] & 0xff) == 42) {
-				p += i + 1;
+			if ((filenames[filenamestrindex + i] & 0xff) == 255 || (filenames[filenamestrindex + i] & 0xff) == 42) {
+				filenamestrindex += i + 1;
 				break;
 			}
-			file[i] = filenames[p + i];
+			file[i] = filenames[filenamestrindex + i];
 		}
 		if (strcmp(file, (char*)filename) == 0) {
 			break;
 		}
-		if ((filenames[p - 1] & 0xff) == 255) {
-			o++;
+		if ((filenames[filenamestrindex - 1] & 0xff) == 255) {
+			filenameindex++;
 		}
 	}
+}
+
+unsigned long long gettablestrindex(PWSTR filename, char* filenames, char* tablestr, unsigned long long filenamecount) {
+	unsigned long long filenameindex = 0;
+	unsigned long long filenamestrindex = 0;
+	getfilenameindex(filename, filenames, filenamecount, filenameindex, filenamestrindex);
 	unsigned long long index = 0;
 	for (unsigned long long i = 0; i < strlen(tablestr); i++) {
 		if ((tablestr[i] & 0xff) == 46) {
-			if (index == o) {
+			if (index == filenameindex) {
 				return i;
 			}
 			index++;
@@ -752,8 +756,6 @@ int simptable(HANDLE& hDisk, unsigned long sectorsize, char* charmap, unsigned l
 			tablelen = i + 1;
 		}
 	}
-	desimp(charmap, tablestr);
-	simp(charmap, tablestr);
 	encode(emap, tablestr, tablelen);
 	tablelen /= 2;
 	unsigned long long filenamesizes = 0;
@@ -1245,7 +1247,7 @@ int main(int argc, char* argv[]) {
 	//std::cout << "Fileinfo: " << std::string(fileinfo, filenamecount * 35) << std::endl;
 
 	createfile((PWSTR) "/Test.bin", 448, filenamecount, fileinfo, filenames, charmap, tablestr);
-	unsigned long long index = getfilenameindex((PWSTR)"/Test.bin", filenames, tablestr, filenamecount);
+	unsigned long long index = gettablestrindex((PWSTR)"/Test.bin", filenames, tablestr, filenamecount);
 	alloc(sectorsize, disksize.QuadPart, tablesize, charmap, tablestr, index, 2097152*3+512);
 	unsigned long long filesize = 0;
 	getfilesize(sectorsize, index, tablestr, filesize);
