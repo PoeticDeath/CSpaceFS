@@ -477,7 +477,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 unsigned long long getfilenameindex(PWSTR filename, char* filenames, char* tablestr, unsigned long long filenamecount) {
 	unsigned long long p = 0;
 	unsigned long long o = 0;
-	for (; o < filenamecount; o++) {
+	for (; o < filenamecount;) {
 		char file[256] = { 0 };
 		unsigned i = 0;
 		for (; i < 256; i++) {
@@ -489,6 +489,9 @@ unsigned long long getfilenameindex(PWSTR filename, char* filenames, char* table
 		}
 		if (strcmp(file, (char*)filename) == 0) {
 			break;
+		}
+		if ((filenames[p - 1] & 0xff) == 255) {
+			o++;
 		}
 	}
 	unsigned long long index = 0;
