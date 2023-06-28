@@ -502,7 +502,245 @@ unsigned long long getfilenameindex(PWSTR filename, char* filenames, char* table
 	}
 }
 
-int simptable(HANDLE& hDisk, unsigned long sectorsize, unsigned long& tablesize, unsigned long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::map<unsigned, unsigned> emap, std::map<unsigned, unsigned> dmap) {
+int desimp(char* charmap, char*& tablestr) {
+	char* newtablestr = (char*)calloc(strlen(tablestr), 1);
+	unsigned long long newloc = 0;
+	unsigned long long tablelen = 0;
+	for (unsigned long long i = 0; i < strlen(tablestr); i++) {
+		if ((tablestr[i] & 0xff) == 46) {
+			tablelen = i + 1;
+		}
+	}
+	char* alc = (char*)calloc(256, 1);
+	unsigned long long clen = 256;
+	char* cblock = (char*)calloc(clen, 1);
+	unsigned long long cloc = 0;
+	std::string str0;
+	std::string str1;
+	std::string str2;
+	std::string rstr;
+	unsigned step = 0;
+	unsigned range = 0;
+	for (unsigned long long i = 0; i < tablelen; i++) {
+		switch (tablestr[i] & 0xff) {
+		case 59: //;
+			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			step++;
+			break;
+		case 46: //.
+			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			if (range == 0) {
+				for (unsigned long long i = 0; i < str0.length(); i++) {
+					newtablestr[newloc] = str0[i];
+					newloc++;
+				}
+			}
+			else {
+				for (unsigned long long p = std::strtoull(rstr.c_str(), 0, 10); p < std::strtoull(str0.c_str(), 0, 10) + 1; p++) {
+					for (unsigned long long i = 0; i < std::to_string(p).length(); i++) {
+						newtablestr[newloc] = std::to_string(p)[i];
+						newloc++;
+					}
+					newtablestr[newloc] = 44;
+					newloc++;
+				}
+				newloc--;
+			}
+			if (step != 0) {
+				newtablestr[newloc] = 59;
+				newloc++;
+				for (unsigned long long i = 0; i < str1.length(); i++) {
+					newtablestr[newloc] = str1[i];
+					newloc++;
+				}
+				newtablestr[newloc] = 59;
+				newloc++;
+				for (unsigned long long i = 0; i < str2.length(); i++) {
+					newtablestr[newloc] = str2[i];
+					newloc++;
+				}
+			}
+			newtablestr[newloc] = 46;
+			newloc++;
+			step = 0;
+			range = 0;
+			break;
+		case 45: //-
+			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			step = 0;
+			range++;
+			rstr = str0;
+			break;
+		case 44: //,
+			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			if (range == 0) {
+				for (unsigned long long i = 0; i < str0.length(); i++) {
+					newtablestr[newloc] = str0[i];
+					newloc++;
+				}
+			}
+			else {
+				for (unsigned long long p = std::strtoull(rstr.c_str(), 0, 10); p < std::strtoull(str0.c_str(), 0, 10) + 1; p++) {
+					for (unsigned long long i = 0; i < std::to_string(p).length(); i++) {
+						newtablestr[newloc] = std::to_string(p)[i];
+						newloc++;
+					}
+					newtablestr[newloc] = 44;
+					newloc++;
+				}
+				newloc--;
+			}
+			newtablestr[newloc] = 44;
+			newloc++;
+			step = 0;
+			range = 0;
+			break;
+		default: //0-9
+			if (cloc > clen - 2) {
+				clen += 256;
+				alc = (char*)realloc(cblock, clen);
+				if (alc == NULL) {
+					free(cblock);
+					return 1;
+				}
+				cblock = alc;
+				alc = NULL;
+			}
+			cblock[cloc] = tablestr[i];
+			cloc++;
+			break;
+		}
+	}
+	tablestr = newtablestr;
+	cleantablestr(charmap, tablestr);
+	return 0;
+}
+
+int simp(char* charmap, char*& tablestr) {
+	char* newtablestr = (char*)calloc(strlen(tablestr), 1);
+	unsigned long long newloc = 0;
+	unsigned long long tablelen = 0;
+	for (unsigned long long i = 0; i < strlen(tablestr); i++) {
+		if ((tablestr[i] & 0xff) == 46) {
+			tablelen = i + 1;
+		}
+	}
+	char* alc = (char*)calloc(256, 1);
+	unsigned long long clen = 256;
+	char* cblock = (char*)calloc(clen, 1);
+	unsigned long long cloc = 0;
+	std::string str0;
+	std::string str1;
+	std::string str2;
+	std::string rstr;
+	unsigned step = 0;
+	for (unsigned long long i = 0; i < tablelen; i++) {
+		switch (tablestr[i] & 0xff) {
+		case 59: //;
+			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			step++;
+			break;
+		case 46: //.
+			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			if (std::strtoull(rstr.c_str(), 0, 10) + 1 != std::strtoull(str0.c_str(), 0, 10)) {
+				if (newtablestr[newloc] == 45) {
+					newloc++;
+					for (unsigned long long i = 0; i < rstr.length(); i++) {
+						newtablestr[newloc] = rstr[i];
+						newloc++;
+					}
+					newtablestr[newloc] = 44;
+					newloc++;
+				}
+				for (unsigned long long i = 0; i < str0.length(); i++) {
+					newtablestr[newloc] = str0[i];
+					newloc++;
+				}
+				newtablestr[newloc] = 46;
+				newloc++;
+			}
+			else {
+				if (newtablestr[newloc] != 45) {
+					newloc--;
+					newtablestr[newloc] = 45;
+					newloc++;
+					for (unsigned long long i = 0; i < str0.length(); i++) {
+						newtablestr[newloc] = str0[i];
+						newloc++;
+					}
+					newtablestr[newloc] = 46;
+					newloc++;
+				}
+			}
+			if (step != 0) {
+				newloc--;
+				newtablestr[newloc] = 59;
+				newloc++;
+				for (unsigned long long i = 0; i < str1.length(); i++) {
+					newtablestr[newloc] = str1[i];
+					newloc++;
+				}
+				newtablestr[newloc] = 59;
+				newloc++;
+				for (unsigned long long i = 0; i < str2.length(); i++) {
+					newtablestr[newloc] = str2[i];
+					newloc++;
+				}
+				newtablestr[newloc] = 46;
+				newloc++;
+			}
+			step = 0;
+			break;
+		case 44: //,
+			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			if (std::strtoull(rstr.c_str(), 0, 10) + 1 != std::strtoull(str0.c_str(), 0, 10)) {
+				if (newtablestr[newloc] == 45) {
+					newloc++;
+					for (unsigned long long i = 0; i < rstr.length(); i++) {
+						newtablestr[newloc] = rstr[i];
+						newloc++;
+					}
+					newtablestr[newloc] = 44;
+					newloc++;
+				}
+				for (unsigned long long i = 0; i < str0.length(); i++) {
+					newtablestr[newloc] = str0[i];
+					newloc++;
+				}
+				newtablestr[newloc] = 44;
+				newloc++;
+			}
+			else {
+				if (newtablestr[newloc] != 45) {
+					newloc--;
+					newtablestr[newloc] = 45;
+				}
+			}
+			rstr = str0;
+			step = 0;
+			break;
+		default: //0-9
+			if (cloc > clen - 2) {
+				clen += 256;
+				alc = (char*)realloc(cblock, clen);
+				if (alc == NULL) {
+					free(cblock);
+					return 1;
+				}
+				cblock = alc;
+				alc = NULL;
+			}
+			cblock[cloc] = tablestr[i];
+			cloc++;
+			break;
+		}
+	}
+	tablestr = newtablestr;
+	cleantablestr(charmap, tablestr);
+	return 0;
+}
+
+int simptable(HANDLE& hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::map<unsigned, unsigned> emap, std::map<unsigned, unsigned> dmap) {
 	_LARGE_INTEGER seek = { 0 };
 	SetFilePointerEx(hDisk, seek, NULL, 0);
 	unsigned long long tablelen = 0;
@@ -511,6 +749,8 @@ int simptable(HANDLE& hDisk, unsigned long sectorsize, unsigned long& tablesize,
 			tablelen = i + 1;
 		}
 	}
+	desimp(charmap, tablestr);
+	simp(charmap, tablestr);
 	encode(emap, tablestr, tablelen);
 	tablelen /= 2;
 	unsigned long long filenamesizes = 0;
@@ -535,6 +775,7 @@ int simptable(HANDLE& hDisk, unsigned long sectorsize, unsigned long& tablesize,
 		}
 	}
 	decode(dmap, tablestr, tablelen);
+	cleantablestr(charmap, tablestr);
 	DWORD w;
 	WriteFile(hDisk, table, ((tablelen + filenamesizes + 7 + (filenamecount * 35) + 511) / 512) * 512, &w, NULL);
 	if (w != ((tablelen + filenamesizes + 7 + (filenamecount * 35) + 511) / 512) * 512) {
@@ -844,6 +1085,7 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 }
 
 int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long index, unsigned long tablesize, unsigned long long disksize, unsigned long long size, unsigned long long newsize, char* charmap, char*& tablestr) {
+	desimp(charmap, tablestr);
 	if (size < newsize) {
 		if (size % sectorsize != 0) {
 			char* temp = (char*)calloc(size % sectorsize, 1);
@@ -862,6 +1104,7 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long index, u
 		}
 		dealloc(sectorsize, charmap, tablestr, index, size, size - newsize);
 	}
+	simp(charmap, tablestr);
 	return 0;
 }
 
@@ -968,6 +1211,7 @@ int main(int argc, char* argv[]) {
 	decode(dmap, tablestr, pos - 5);
 	//std::cout << "Decoded table: " << std::string(str, (pos - 5) * 2) << std::endl;
 
+	//simp(charmap, tablestr);
 	//encode(emap, str, (pos - 5) * 2);
 	//std::cout << "Encoded table: ";
 	//for (unsigned long long i = 0; i < pos - 5; i++) {
@@ -1009,12 +1253,13 @@ int main(int argc, char* argv[]) {
 	alloc(sectorsize, disksize.QuadPart, tablesize, charmap, tablestr, index, 512);
 	getfilesize(sectorsize, index, tablestr, filesize);
 	std::cout << filesize << " " << tablestr << std::endl;
-	simptable(hDisk, sectorsize, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
+	simptable(hDisk, sectorsize, charmap, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
 	char* buf = (char*)calloc(2097152*3, 1);
 	readwritefile(hDisk, sectorsize, index, 0, 2097152*3, disksize.QuadPart, tablestr, buf, 1);
 	std::cout << tablestr << std::endl;
 	trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize, 2097152*2, charmap, tablestr);
 	std::cout << tablestr << std::endl;
-
+	simptable(hDisk, sectorsize, charmap, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
+	std::cout << tablestr << std::endl;
 	return 0;
 }
