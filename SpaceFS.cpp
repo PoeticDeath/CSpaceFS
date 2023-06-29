@@ -492,6 +492,7 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 			filenameindex++;
 		}
 	}
+	filenamestrindex--;
 }
 
 unsigned long long gettablestrindex(PWSTR filename, char* filenames, char* tablestr, unsigned long long filenamecount) {
@@ -649,7 +650,7 @@ int simp(char* charmap, char*& tablestr) {
 			break;
 		case 46: //.
 			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
-			if (std::strtoull(rstr.c_str(), 0, 10) + 1 != std::strtoull(str0.c_str(), 0, 10)) {
+			if (std::strtoull(rstr.c_str(), 0, 10) + 1 != std::strtoull(str0.c_str(), 0, 10) || rstr == "") {
 				if (newtablestr[newloc] == 45) {
 					newloc++;
 					for (unsigned long long i = 0; i < rstr.length(); i++) {
@@ -696,11 +697,12 @@ int simp(char* charmap, char*& tablestr) {
 				newtablestr[newloc] = 46;
 				newloc++;
 			}
+			rstr = "";
 			step = 0;
 			break;
 		case 44: //,
 			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
-			if (std::strtoull(rstr.c_str(), 0, 10) + 1 != std::strtoull(str0.c_str(), 0, 10)) {
+			if (std::strtoull(rstr.c_str(), 0, 10) + 1 != std::strtoull(str0.c_str(), 0, 10) || rstr == "") {
 				if (newtablestr[newloc] == 45) {
 					newloc++;
 					for (unsigned long long i = 0; i < rstr.length(); i++) {
@@ -763,6 +765,9 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 		if ((filenames[i] & 0xff) == 255) {
 			filenamesizes = i + 1;
 		}
+		if ((filenames[i] & 0xff) == 254) {
+			break;
+		}
 	}
 	tablesize = (tablelen + filenamesizes + (35 * filenamecount) + sectorsize - 1) / sectorsize;
 	settablesize(sectorsize, tablesize, extratablesize, table);
@@ -805,6 +810,7 @@ int createfile(PWSTR filename, unsigned long mode, unsigned long long& filenamec
 	file = ((char*)filename);
 	strcpy_s(filenames + oldlen, strlen(file) + 1, file);
 	filenames[oldlen + strlen(file)] = 255;
+	filenames[oldlen + strlen(file) + 1] = 254;
 	unsigned long long tablelen = 0;
 	for (unsigned long long i = 0; i < strlen(tablestr); i++) {
 		if ((tablestr[i] & 0xff) == 46) {
@@ -857,6 +863,21 @@ int createfile(PWSTR filename, unsigned long mode, unsigned long long& filenamec
 	free(gum);
 	filenamecount++;
 	cleantablestr(charmap, tablestr);
+	return 0;
+}
+
+int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long filenamestrindex, char*& filenames) {
+	unsigned long long oldlen = strlen(filenames);
+	char* files = (char*)calloc(oldlen - filenamestrindex + 1, 1);
+	memcpy(files, filenames + filenamestrindex, oldlen - filenamestrindex);
+	memcpy(filenames + filenamestrindex - strlen((char*)oldfilename), newfilename, strlen((char*)newfilename));
+	unsigned long long afterlen = 0;
+	for (; afterlen < strlen(files); afterlen++) {
+		if ((files[afterlen] & 0xff) == 254) {
+			break;
+		}
+	}
+	memcpy(filenames + filenamestrindex - strlen((char*)oldfilename) + strlen((char*)newfilename), files, afterlen + 1);
 	return 0;
 }
 
@@ -1317,23 +1338,23 @@ int main(int argc, char* argv[]) {
 	//std::cout << "Fileinfo size: " << filenamecount * 35 << std::endl;
 	//std::cout << "Fileinfo: " << std::string(fileinfo, filenamecount * 35) << std::endl;
 
-	createfile((PWSTR) "/Test.bin", 448, filenamecount, fileinfo, filenames, charmap, tablestr);
+	createfile((PWSTR)"/Test.bin", 448, filenamecount, fileinfo, filenames, charmap, tablestr);
 	unsigned long long index = gettablestrindex((PWSTR)"/Test.bin", filenames, tablestr, filenamecount);
-	alloc(sectorsize, disksize.QuadPart, tablesize, charmap, tablestr, index, 2097152*3+512);
+	alloc(sectorsize, disksize.QuadPart, tablesize, charmap, tablestr, index, 2097152 * 3 + 512);
 	unsigned long long filesize = 0;
 	getfilesize(sectorsize, index, tablestr, filesize);
 	std::cout << filesize << " " << tablestr << std::endl;
-	dealloc(sectorsize, charmap, tablestr, index, filesize, 2097152*2+512);
+	dealloc(sectorsize, charmap, tablestr, index, filesize, 2097152 * 2 + 512);
 	getfilesize(sectorsize, index, tablestr, filesize);
 	std::cout << filesize << " " << tablestr << std::endl;
 	alloc(sectorsize, disksize.QuadPart, tablesize, charmap, tablestr, index, 512);
 	getfilesize(sectorsize, index, tablestr, filesize);
 	std::cout << filesize << " " << tablestr << std::endl;
 	simptable(hDisk, sectorsize, charmap, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
-	char* buf = (char*)calloc(2097152*3, 1);
-	readwritefile(hDisk, sectorsize, index, 0, 2097152*3, disksize.QuadPart, tablestr, buf, 1);
+	char* buf = (char*)calloc(2097152 * 3, 1);
+	readwritefile(hDisk, sectorsize, index, 0, 2097152 * 3, disksize.QuadPart, tablestr, buf, 1);
 	std::cout << tablestr << std::endl;
-	trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize, 2097152*2, charmap, tablestr);
+	trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize, 2097152 * 2, charmap, tablestr);
 	std::cout << tablestr << std::endl;
 	simptable(hDisk, sectorsize, charmap, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
 	std::cout << tablestr << std::endl;
@@ -1354,6 +1375,8 @@ int main(int argc, char* argv[]) {
 	chwinattrs(fileinfo, filenameindex, winattrs, 0);
 	std::cout << (time_t)time << std::endl;
 	std::cout << gid << " " << uid << " " << mode << " " << winattrs << std::endl;
+	renamefile((PWSTR)"/Test.bin", (PWSTR)"/Test", filenamestrindex, filenames);
+	std::cout << filenames << std::endl;
 	simptable(hDisk, sectorsize, charmap, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
 	return 0;
 }
