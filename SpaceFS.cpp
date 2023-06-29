@@ -747,7 +747,7 @@ int simp(char* charmap, char*& tablestr) {
 	return 0;
 }
 
-int simptable(HANDLE& hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::map<unsigned, unsigned> emap, std::map<unsigned, unsigned> dmap) {
+int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::map<unsigned, unsigned> emap, std::map<unsigned, unsigned> dmap) {
 	_LARGE_INTEGER seek = { 0 };
 	SetFilePointerEx(hDisk, seek, NULL, 0);
 	unsigned long long tablelen = 0;
