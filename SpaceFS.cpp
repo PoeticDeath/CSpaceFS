@@ -58,7 +58,7 @@ void cleantablestr(char* charmap, char*& tablestr) {
 	tablestr = alc;
 }
 
-int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned long& extratablesize, char*& table) {
+int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned long long& extratablesize, char*& table) {
 	extratablesize = (tablesize * sectorsize);
 	char* alc = NULL;
 	alc = (char*)realloc(table, extratablesize);
@@ -749,7 +749,7 @@ int simp(char* charmap, char*& tablestr) {
 	return 0;
 }
 
-int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::map<unsigned, unsigned> emap, std::map<unsigned, unsigned> dmap) {
+int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::map<unsigned, unsigned> emap, std::map<unsigned, unsigned> dmap) {
 	_LARGE_INTEGER seek = { 0 };
 	SetFilePointerEx(hDisk, seek, NULL, 0);
 	unsigned long long tablelen = 0;
@@ -769,7 +769,7 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 			break;
 		}
 	}
-	tablesize = (tablelen + filenamesizes + (35 * filenamecount) + sectorsize - 1) / sectorsize;
+	tablesize = (tablelen + filenamesizes + (35 * filenamecount) + sectorsize - 1) / sectorsize + 1;
 	settablesize(sectorsize, tablesize, extratablesize, table);
 	for (unsigned long long i = 0; i < tablelen; i++) {
 		table[i + 5] = (unsigned)tablestr[i] & 0xff;
@@ -780,7 +780,7 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 	}
 	table[tablelen + 6 + filenamesizes] = 254;
 	for (unsigned long long i = 0; i < filenamecount; i++) {
-		for (unsigned long long j = 0; j < 35; j++) {
+		for (unsigned j = 0; j < 35; j++) {
 			table[tablelen + filenamesizes + 7 + (i * 35) + j] = fileinfo[(i * 35) + j];
 		}
 	}
@@ -794,7 +794,7 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 	return 0;
 }
 
-int createfile(PWSTR filename, unsigned long mode, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char* charmap, char*& tablestr) {
+int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned long mode, unsigned long winattrs, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char* charmap, char*& tablestr) {
 	char* alc = (char*)realloc(fileinfo, (filenamecount + 1) * 35);
 	if (alc == NULL) {
 		return 1;
@@ -814,15 +814,10 @@ int createfile(PWSTR filename, unsigned long mode, unsigned long long& filenamec
 	unsigned long long tablelen = 0;
 	for (unsigned long long i = 0; i < strlen(tablestr); i++) {
 		if ((tablestr[i] & 0xff) == 46) {
-			tablelen = i;
+			tablelen = i + 1;
 		}
 	}
-	if (tablelen == 0) {
-		tablestr[tablelen] = 46;
-	}
-	else {
-		tablestr[tablelen + 1] = 46;
-	}
+	tablestr[tablelen] = 46;
 	char* gum = (char*)calloc((filenamecount + 1) * 11, 1);
 	memcpy(gum, fileinfo + filenamecount * 24, filenamecount * 11);
 	time_t ltime;
@@ -838,11 +833,6 @@ int createfile(PWSTR filename, unsigned long mode, unsigned long long& filenamec
 	memcpy(fileinfo + filenamecount * 24 + 8, &tim, 8);
 	memcpy(fileinfo + filenamecount * 24 + 16, &tim, 8);
 	char guidmodes[11] = { 0 };
-	unsigned long gid;
-	unsigned long uid;
-	unsigned long winattrs;
-	gid = uid = 545;
-	winattrs = 2048;
 	guidmodes[0] = (gid >> 16) & 0xff;
 	guidmodes[1] = (gid >> 8) & 0xff;
 	guidmodes[2] = gid & 0xff;
@@ -866,7 +856,36 @@ int createfile(PWSTR filename, unsigned long mode, unsigned long long& filenamec
 	return 0;
 }
 
-int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long filenamestrindex, char*& filenames) {
+int deletefile(unsigned long long index, unsigned long long filenameindex, unsigned long long filenamestrindex, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char*& tablestr) {
+	unsigned start = 0;
+	unsigned filenamelen = 0;
+	unsigned long long end = 0;
+	for (unsigned long long i = 0; i < filenamestrindex; i++) {
+		start = filenames[filenamestrindex - i - 1] & 0xff;
+		if (start == 255 || start == 42) {
+			break;
+		}
+		filenamelen++;
+	}
+	if (start != 42) {
+		for (; end < strlen(filenames); end++) {
+			if ((filenames[filenamestrindex + end] & 0xff) == 255) {
+				break;
+			}
+		}
+		unsigned long long pindex = getpindex(index, tablestr);
+		memcpy(tablestr + index - pindex, tablestr + index + 1, strlen(tablestr) - index - 1);
+		tablestr[strlen(tablestr) - pindex - 1] = 0;
+		memcpy(fileinfo + filenameindex * 24, fileinfo + (filenameindex + 1) * 24, (filenamecount - filenameindex - 1) * 24);
+		memcpy(fileinfo + (filenamecount - 1) * 24 + filenameindex * 11, fileinfo + filenamecount * 24 + (filenameindex + 1) * 11, (filenamecount - filenameindex - 1) * 11);
+		fileinfo[(filenamecount - 1) * 35] = 0;
+	}
+	memcpy(filenames + filenamestrindex - filenamelen - 1, filenames + filenamestrindex + end, strlen(filenames) - filenamestrindex - end + 1);
+	filenamecount--;
+	return 0;
+}
+
+int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenamestrindex, char*& filenames) {
 	unsigned long long oldlen = strlen(filenames);
 	char* files = (char*)calloc(oldlen - filenamestrindex + 1, 1);
 	memcpy(files, filenames + filenamestrindex, oldlen - filenamestrindex);
@@ -878,6 +897,7 @@ int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long filename
 		}
 	}
 	memcpy(filenames + filenamestrindex - strlen((char*)oldfilename) + strlen((char*)newfilename), files, afterlen + 1);
+	filenamestrindex -= strlen((char*)oldfilename) - strlen((char*)newfilename);
 	return 0;
 }
 
@@ -1043,7 +1063,78 @@ void readwrite(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksi
 	}
 }
 
-int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long long index, unsigned long long start, unsigned long long len, unsigned long long disksize, char* tablestr, char*& buf, unsigned rw) {
+void chtime(char*& fileinfo, unsigned long long filenameindex, double& time, unsigned ch) { // 24 bytes per file
+	unsigned o = 0;
+	if (ch == 2 || ch == 3) {
+		o = 8;
+	}
+	else if (ch == 4 || ch == 5) {
+		o = 16;
+	}
+	if (ch % 2 == 0) {
+		char tim[8] = { 0 };
+		memcpy(tim, fileinfo + filenameindex * 24 + o, 8);
+		char ti[8] = { 0 };
+		for (unsigned i = 0; i < 8; i++) {
+			ti[i] = tim[7 - i];
+		}
+		memcpy(&time, ti, 8);
+	}
+	else {
+		char ti[8] = { 0 };
+		memcpy(ti, &time, 8);
+		char tim[8] = { 0 };
+		for (unsigned i = 0; i < 8; i++) {
+			tim[i] = ti[7 - i];
+		}
+		memcpy(fileinfo + filenameindex * 24 + o, tim, 8);
+	}
+}
+
+void chgid(char*& fileinfo, unsigned long long filenamecount, unsigned long long filenameindex, unsigned long& gid, unsigned ch) { // Next three bytes of fileinfo after times
+	if (ch == 0) {
+		gid = (fileinfo[filenamecount * 24 + filenameindex * 11] & 0xff) << 16 | (fileinfo[filenamecount * 24 + filenameindex * 11 + 1] & 0xff) << 8 | fileinfo[filenamecount * 24 + filenameindex * 11 + 2] & 0xff;
+	}
+	else {
+		fileinfo[filenamecount * 24 + filenameindex * 11] = (gid >> 16) & 0xff;
+		fileinfo[filenamecount * 24 + filenameindex * 11 + 1] = (gid >> 8) & 0xff;
+		fileinfo[filenamecount * 24 + filenameindex * 11 + 2] = gid & 0xff;
+	}
+}
+
+void chuid(char*& fileinfo, unsigned long long filenamecount, unsigned long long filenameindex, unsigned long& uid, unsigned ch) { // Next two bytes of fileinfo
+	if (ch == 0) {
+		uid = (fileinfo[filenamecount * 24 + filenameindex * 11 + 3] & 0xff) << 8 | fileinfo[filenamecount * 24 + filenameindex * 11 + 4] & 0xff;
+	}
+	else {
+		fileinfo[filenamecount * 24 + filenameindex * 11 + 3] = (uid >> 8) & 0xff;
+		fileinfo[filenamecount * 24 + filenameindex * 11 + 4] = uid & 0xff;
+	}
+}
+
+void chmode(char*& fileinfo, unsigned long long filenamecount, unsigned long long filenameindex, unsigned long& mode, unsigned ch) { // Next two bytes of fileinfo
+	if (ch == 0) {
+		mode = (fileinfo[filenamecount * 24 + filenameindex * 11 + 5] & 0xff) << 8 | fileinfo[filenamecount * 24 + filenameindex * 11 + 6] & 0xff;
+	}
+	else {
+		fileinfo[filenamecount * 24 + filenameindex * 11 + 5] = (mode >> 8) & 0xff;
+		fileinfo[filenamecount * 24 + filenameindex * 11 + 6] = mode & 0xff;
+	}
+}
+
+void chwinattrs(char*& fileinfo, unsigned long long filenamecount, unsigned long long filenameindex, unsigned long& winattrs, unsigned ch) { // Last four bytes of fileinfo
+	if (ch == 0) {
+		winattrs = (fileinfo[filenamecount * 24 + filenameindex * 11 + 7] & 0xff) << 24 | (fileinfo[filenamecount * 24 + filenameindex * 11 + 8] & 0xff) << 16 | (fileinfo[filenamecount * 24 + filenameindex * 11 + 9] & 0xff) << 8 | fileinfo[filenamecount * 24 + filenameindex * 11 + 10] & 0xff;
+	}
+	else {
+		fileinfo[filenamecount * 24 + filenameindex * 11 + 7] = (winattrs >> 24) & 0xff;
+		fileinfo[filenamecount * 24 + filenameindex * 11 + 8] = (winattrs >> 16) & 0xff;
+		fileinfo[filenamecount * 24 + filenameindex * 11 + 9] = (winattrs >> 8) & 0xff;
+		fileinfo[filenamecount * 24 + filenameindex * 11 + 10] = winattrs & 0xff;
+	}
+}
+
+int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long long index, unsigned long long start, unsigned long long len, unsigned long long disksize, char* tablestr, char*& buf, char*& fileinfo, unsigned long long filenameindex, unsigned rw) {
 	unsigned long long pindex = getpindex(index, tablestr);
 	unsigned long long filesize = 0;
 	getfilesize(sectorsize, index, tablestr, filesize);
@@ -1107,18 +1198,22 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 			break;
 		}
 	}
+	time_t ltime;
+	time(&ltime);
+	double ctime = (double)ltime;
+	chtime(fileinfo, filenameindex, ctime, rw * 2 + 1);
 	return 0;
 }
 
-int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long index, unsigned long tablesize, unsigned long long disksize, unsigned long long size, unsigned long long newsize, char* charmap, char*& tablestr) {
+int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, unsigned long tablesize, unsigned long long disksize, unsigned long long size, unsigned long long newsize, unsigned long long filenameindex, char* charmap, char*& tablestr, char*& fileinfo) {
 	desimp(charmap, tablestr);
 	if (size < newsize) {
 		if (size % sectorsize != 0) {
 			char* temp = (char*)calloc(size % sectorsize, 1);
-			readwritefile(hDisk, sectorsize, index, size - size % sectorsize, size % sectorsize, disksize, tablestr, temp, 0);
+			readwritefile(hDisk, sectorsize, index, size - size % sectorsize, size % sectorsize, disksize, tablestr, temp, fileinfo, filenameindex, 0);
 			dealloc(sectorsize, charmap, tablestr, index, size, size % sectorsize);
 			alloc(sectorsize, disksize, tablesize, charmap, tablestr, index, newsize - (size - size % sectorsize));
-			readwritefile(hDisk, sectorsize, index, size - size % sectorsize, size % sectorsize, disksize, tablestr, temp, 1);
+			readwritefile(hDisk, sectorsize, index, size - size % sectorsize, size % sectorsize, disksize, tablestr, temp, fileinfo, filenameindex, 1);
 			size += newsize - size;
 		}
 		alloc(sectorsize, disksize, tablesize, charmap, tablestr, index, newsize - size);
@@ -1131,78 +1226,11 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long index, u
 		dealloc(sectorsize, charmap, tablestr, index, size, size - newsize);
 	}
 	simp(charmap, tablestr);
+	time_t ltime;
+	time(&ltime);
+	double ctime = (double)ltime;
+	chtime(fileinfo, filenameindex, ctime, 3);
 	return 0;
-}
-
-void chtime(char*& fileinfo, unsigned long long filenameindex, double& time, unsigned ch) { // First 24 bytes of fileinfo 0/35
-	unsigned o = 0;
-	if (ch == 2 || ch == 3) {
-		o = 8;
-	}
-	else if (ch == 4 || ch == 5) {
-		o = 16;
-	}
-	if (ch % 2 == 0) {
-		char tim[8] = { 0 };
-		memcpy(tim, fileinfo + filenameindex * 35 + o, 8);
-		char ti[8] = { 0 };
-		for (unsigned i = 0; i < 8; i++) {
-			ti[i] = tim[7 - i];
-		}
-		memcpy(&time, ti, 8);
-	}
-	else {
-		char ti[8] = { 0 };
-		memcpy(ti, &time, 8);
-		char tim[8] = { 0 };
-		for (unsigned i = 0; i < 8; i++) {
-			tim[i] = ti[7 - i];
-		}
-		memcpy(fileinfo + filenameindex * 35 + o, tim, 8);
-	}
-}
-
-void chgid(char*& fileinfo, unsigned long long filenameindex, unsigned long& gid, unsigned ch) { // Next three bytes of fileinfo 24/35
-	if (ch == 0) {
-		gid = (fileinfo[filenameindex * 35 + 24] & 0xff) << 16 | (fileinfo[filenameindex * 35 + 25] & 0xff) << 8 | fileinfo[filenameindex * 35 + 26] & 0xff;
-	}
-	else {
-		fileinfo[filenameindex * 35 + 24] = (gid >> 16) & 0xff;
-		fileinfo[filenameindex * 35 + 25] = (gid >> 8) & 0xff;
-		fileinfo[filenameindex * 35 + 26] = gid & 0xff;
-	}
-}
-
-void chuid(char*& fileinfo, unsigned long long filenameindex, unsigned long& uid, unsigned ch) { // Next two bytes of fileinfo 27/35
-	if (ch == 0) {
-		uid = (fileinfo[filenameindex * 35 + 27] & 0xff) << 8 | fileinfo[filenameindex * 35 + 28] & 0xff;
-	}
-	else {
-		fileinfo[filenameindex * 35 + 27] = (uid >> 8) & 0xff;
-		fileinfo[filenameindex * 35 + 28] = uid & 0xff;
-	}
-}
-
-void chmode(char*& fileinfo, unsigned long long filenameindex, unsigned long& mode, unsigned ch) { // Next two bytes of fileinfo 29/35
-	if (ch == 0) {
-		mode = (fileinfo[filenameindex * 35 + 29] & 0xff) << 8 | fileinfo[filenameindex * 35 + 30] & 0xff;
-	}
-	else {
-		fileinfo[filenameindex * 35 + 29] = (mode >> 8) & 0xff;
-		fileinfo[filenameindex * 35 + 30] = mode & 0xff;
-	}
-}
-
-void chwinattrs(char*& fileinfo, unsigned long long filenameindex, unsigned long& winattrs, unsigned ch) { // Last four bytes of fileinfo 31/35
-	if (ch == 0) {
-		winattrs = (fileinfo[filenameindex * 35 + 31] & 0xff) << 24 | (fileinfo[filenameindex * 35 + 32] & 0xff) << 16 | (fileinfo[filenameindex * 35 + 33] & 0xff) << 8 | fileinfo[filenameindex * 35 + 34] & 0xff;
-	}
-	else {
-		fileinfo[filenameindex * 35 + 31] = (winattrs >> 24) & 0xff;
-		fileinfo[filenameindex * 35 + 32] = (winattrs >> 16) & 0xff;
-		fileinfo[filenameindex * 35 + 33] = (winattrs >> 8) & 0xff;
-		fileinfo[filenameindex * 35 + 34] = winattrs & 0xff;
-	}
 }
 
 int main(int argc, char* argv[]) {
@@ -1269,7 +1297,7 @@ int main(int argc, char* argv[]) {
 	//std::cout << "Read disk with sectorsize: " << sectorsize << std::endl;
 
 	unsigned long tablesize = 1 + bytes[4] + (bytes[3] << 8) + (bytes[2] << 16) + (bytes[1] << 24);
-	unsigned long extratablesize = (tablesize * sectorsize) - 512;
+	unsigned long long extratablesize = (tablesize * sectorsize) - 512;
 	char* ttable = (char*)calloc(extratablesize, 1);
 	ReadFile(hDisk, ttable, extratablesize, &r, NULL);
 	if (r != extratablesize) {
@@ -1330,6 +1358,7 @@ int main(int argc, char* argv[]) {
 			filenamecount++;
 		}
 	}
+	filenames[filenamepos - pos - 1] = 254;
 	//std::cout << "Filename count: " << filenamecount << std::endl;
 	//std::cout << "Filenames: " << std::string(filenames, filenamepos - pos - 1) << std::endl;
 
@@ -1338,8 +1367,17 @@ int main(int argc, char* argv[]) {
 	//std::cout << "Fileinfo size: " << filenamecount * 35 << std::endl;
 	//std::cout << "Fileinfo: " << std::string(fileinfo, filenamecount * 35) << std::endl;
 
-	createfile((PWSTR)"/Test.bin", 448, filenamecount, fileinfo, filenames, charmap, tablestr);
+	createfile((PWSTR)"/Test.bin", 545, 545, 448, 2048, filenamecount, fileinfo, filenames, charmap, tablestr);
+	createfile((PWSTR)"/Test", 545, 1000, 448, 2048, filenamecount, fileinfo, filenames, charmap, tablestr);
+	unsigned long long tindex = gettablestrindex((PWSTR)"/Test", filenames, tablestr, filenamecount);
+	unsigned long long tfilenameindex = 0;
+	unsigned long long tfilenamestrindex = 0;
+	getfilenameindex((PWSTR)"/Test", filenames, filenamecount, tfilenameindex, tfilenamestrindex);
+	trunfile(hDisk, sectorsize, tindex, tablesize, disksize.QuadPart, 0, 10, tfilenameindex, charmap, tablestr, fileinfo);
 	unsigned long long index = gettablestrindex((PWSTR)"/Test.bin", filenames, tablestr, filenamecount);
+	unsigned long long filenameindex = 0;
+	unsigned long long filenamestrindex = 0;
+	getfilenameindex((PWSTR)"/Test.bin", filenames, filenamecount, filenameindex, filenamestrindex);
 	alloc(sectorsize, disksize.QuadPart, tablesize, charmap, tablestr, index, 2097152 * 3 + 512);
 	unsigned long long filesize = 0;
 	getfilesize(sectorsize, index, tablestr, filesize);
@@ -1352,31 +1390,39 @@ int main(int argc, char* argv[]) {
 	std::cout << filesize << " " << tablestr << std::endl;
 	simptable(hDisk, sectorsize, charmap, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
 	char* buf = (char*)calloc(2097152 * 3, 1);
-	readwritefile(hDisk, sectorsize, index, 0, 2097152 * 3, disksize.QuadPart, tablestr, buf, 1);
+	readwritefile(hDisk, sectorsize, index, 0, 2097152 * 3, disksize.QuadPart, tablestr, buf, fileinfo, filenameindex, 1);
 	std::cout << tablestr << std::endl;
-	trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize, 2097152 * 2, charmap, tablestr);
+	trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize, 2097152 * 2, filenameindex, charmap, tablestr, fileinfo);
 	std::cout << tablestr << std::endl;
 	simptable(hDisk, sectorsize, charmap, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
 	std::cout << tablestr << std::endl;
-	unsigned long long filenameindex = 0;
-	unsigned long long filenamestrindex = 0;
 	double time = 0;
 	unsigned long gid = 0;
 	unsigned long uid = 0;
 	unsigned long mode = 16877;
 	unsigned long winattrs = 0;
-	getfilenameindex((PWSTR)"/Test.bin", filenames, filenamecount, filenameindex, filenamestrindex);
 	chtime(fileinfo, filenameindex, time, 1);
 	chtime(fileinfo, filenameindex, time, 3);
 	chtime(fileinfo, filenameindex, time, 5);
-	chgid(fileinfo, filenameindex, gid, 0);
-	chuid(fileinfo, filenameindex, uid, 0);
-	chmode(fileinfo, filenameindex, mode, 1);
-	chwinattrs(fileinfo, filenameindex, winattrs, 0);
+	chgid(fileinfo, filenamecount, filenameindex, gid, 0);
+	chuid(fileinfo, filenamecount, filenameindex, uid, 0);
+	chmode(fileinfo, filenamecount, filenameindex, mode, 1);
+	chwinattrs(fileinfo, filenamecount, filenameindex, winattrs, 0);
 	std::cout << (time_t)time << std::endl;
 	std::cout << gid << " " << uid << " " << mode << " " << winattrs << std::endl;
-	renamefile((PWSTR)"/Test.bin", (PWSTR)"/Test", filenamestrindex, filenames);
+	renamefile((PWSTR)"/Test.bin", (PWSTR)"/Testing.txt", filenamestrindex, filenames);
 	std::cout << filenames << std::endl;
+	deletefile(index, filenameindex, filenamestrindex, filenamecount, fileinfo, filenames, tablestr);
+	chtime(fileinfo, 0, time, 4);
+	chuid(fileinfo, 1, 0, uid, 0);
+	std::cout << uid << " " << (time_t)time << std::endl;
+	std::cout << fileinfo << " " << filenames << " " << tablestr << std::endl;
+	tindex = gettablestrindex((PWSTR)"/Test", filenames, tablestr, filenamecount);
+	tfilenameindex = 0;
+	tfilenamestrindex = 0;
+	getfilenameindex((PWSTR)"/Test", filenames, filenamecount, tfilenameindex, tfilenamestrindex);
+	deletefile(tindex, tfilenameindex, tfilenamestrindex, filenamecount, fileinfo, filenames, tablestr);
 	simptable(hDisk, sectorsize, charmap, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
+	std::cout << tablestr << std::endl;
 	return 0;
 }
