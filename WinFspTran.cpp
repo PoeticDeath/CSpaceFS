@@ -137,7 +137,7 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem, FSP_FSCTL_VOLUME_INFO
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameSTRIndex, 0);
 
 	VolumeInfo->TotalSize = SpFs->DiskSize - SpFs->ExtraTableSize;
-	VolumeInfo->FreeSize = SpFs->DiskSize - SpFs->ExtraTableSize - SpFs->UsedBlocks;
+	VolumeInfo->FreeSize = SpFs->DiskSize - SpFs->ExtraTableSize - SpFs->UsedBlocks * SpFs->SectorSize;
 	for (int i = 0; i < FileSize; i++)
 		VolumeInfo->VolumeLabel[i] = buf[i];
 	VolumeInfo->VolumeLabelLength = FileSize * 2;
@@ -163,7 +163,7 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM *FileSystem, PWSTR Label, FSP_FS
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 
 	VolumeInfo->TotalSize = SpFs->DiskSize - SpFs->ExtraTableSize;
-	VolumeInfo->FreeSize = SpFs->DiskSize - SpFs->ExtraTableSize - SpFs->UsedBlocks;
+	VolumeInfo->FreeSize = SpFs->DiskSize - SpFs->ExtraTableSize - SpFs->UsedBlocks * SpFs->SectorSize;
 	memcpy(VolumeInfo->VolumeLabel, Label, wcslen(Label) * 2);
 	VolumeInfo->VolumeLabelLength = wcslen(Label) * 2;
 

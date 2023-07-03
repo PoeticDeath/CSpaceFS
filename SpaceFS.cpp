@@ -678,17 +678,13 @@ int simp(char* charmap, char*& tablestr) {
 				newloc++;
 			}
 			else {
-				if (newtablestr[newloc] != 45) {
-					newloc--;
-					newtablestr[newloc] = 45;
-					newloc++;
-					for (unsigned long long i = 0; i < str0.length(); i++) {
-						newtablestr[newloc] = str0[i];
-						newloc++;
-					}
-					newtablestr[newloc] = 46;
+				newloc++;
+				for (unsigned long long i = 0; i < str0.length(); i++) {
+					newtablestr[newloc] = str0[i];
 					newloc++;
 				}
+				newtablestr[newloc] = 46;
+				newloc++;
 			}
 			if (step != 0) {
 				newloc--;
