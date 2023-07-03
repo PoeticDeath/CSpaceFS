@@ -160,6 +160,7 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM *FileSystem, PWSTR Label, FSP_FS
 	for (int i = 0; i < wcslen(Label); i++)
 		buf[i] = Label[i];
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, wcslen(Label), SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 1);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 
 	VolumeInfo->TotalSize = SpFs->DiskSize - SpFs->ExtraTableSize;
 	VolumeInfo->FreeSize = SpFs->DiskSize - SpFs->ExtraTableSize - SpFs->UsedBlocks;
