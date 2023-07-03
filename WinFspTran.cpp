@@ -10,6 +10,10 @@
 #define warn(format, ...) FspServiceLog(EVENTLOG_WARNING_TYPE, format, __VA_ARGS__)
 #define fail(format, ...) FspServiceLog(EVENTLOG_ERROR_TYPE, format, __VA_ARGS__)
 
+char* charmap = (char*)"0123456789-,.; ";
+std::map<unsigned, unsigned> emap = {};
+std::map<unsigned, unsigned> dmap = {};
+
 typedef struct
 {
     FSP_FILE_SYSTEM *FileSystem;
@@ -21,9 +25,6 @@ typedef struct
 	ULONG TableSize;
 	ULONGLONG ExtraTableSize;
 	char* Table;
-	char* CharMap;
-	std::map<unsigned, unsigned> *EMap;
-	std::map<unsigned, unsigned> *DMap;
 	char* TableStr;
 	ULONGLONG FilenameCount;
 	char* Filenames;
@@ -146,7 +147,26 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem, FSP_FSCTL_VOLUME_INFO
 
 static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM *FileSystem, PWSTR Label, FSP_FSCTL_VOLUME_INFO *VolumeInfo)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	unsigned long long FileSize = 0;
+	unsigned long long Index = gettablestrindex(PWSTR(L":"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	unsigned long long FilenameIndex = 0;
+	unsigned long long FilenameSTRIndex = 0;
+
+	getfilenameindex(PWSTR(L":"), SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+	trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, wcslen(Label), FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks);
+	char* buf = (char*)calloc(32, 1);
+	for (int i = 0; i < wcslen(Label); i++)
+		buf[i] = Label[i];
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, wcslen(Label), SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 1);
+
+	VolumeInfo->TotalSize = SpFs->DiskSize - SpFs->ExtraTableSize;
+	VolumeInfo->FreeSize = SpFs->DiskSize - SpFs->ExtraTableSize - SpFs->UsedBlocks;
+	memcpy(VolumeInfo->VolumeLabel, Label, wcslen(Label) * 2);
+	VolumeInfo->VolumeLabelLength = wcslen(Label) * 2;
+
+	return STATUS_SUCCESS;
 }
 
 static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName, PUINT32 PFileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
@@ -486,9 +506,6 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	memcpy(table + 512, ttable, extratablesize);
 	free(ttable);
 
-	char charmap[16] = "0123456789-,.; ";
-	std::map<unsigned, unsigned> emap = {};
-	std::map<unsigned, unsigned> dmap = {};
 	unsigned p = 0;
 	unsigned c;
 	for (unsigned i = 0; i < 15; i++) {
@@ -572,9 +589,6 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	SpFs->TableSize = tablesize;
 	SpFs->ExtraTableSize = extratablesize;
 	SpFs->Table = table;
-	SpFs->CharMap = charmap;
-	SpFs->EMap = &emap;
-	SpFs->DMap = &dmap;
 	SpFs->TableStr = tablestr;
 	SpFs->FilenameCount = filenamecount;
 	SpFs->Filenames = filenames;
