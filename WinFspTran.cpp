@@ -90,6 +90,48 @@ static void RemoveFirst(PWSTR &FileName)
 	FileName = NewFileName;
 }
 
+static void GetParentName(PWSTR &FileName, PWSTR &Suffix)
+{
+	wchar_t* NewFileName = (wchar_t*)calloc(256, 2);
+	unsigned Loc = 0;
+
+	for (unsigned i = 0; i < 256; i++)
+	{
+		if (FileName[i] == '\0')
+			break;
+		switch (FileName[i]) {
+			case '/':
+				NewFileName[i] = FileName[i];
+				Loc = i;
+				break;
+			default:
+				NewFileName[i] = FileName[i];
+				break;
+		}
+	}
+
+	if (Suffix) {
+		wchar_t* NewSuffix = (wchar_t*)calloc(256, 2);
+		
+		unsigned i = 0;
+		for(; i < 256; i++)
+		{
+			if (FileName[Loc + i + 1] == '\0')
+				break;
+			NewSuffix[i] = FileName[Loc + i + 1];
+		}
+
+		memcpy(Suffix, NewSuffix, (i + 1) * 2);
+		free(NewSuffix);
+	}
+
+	if (Loc != 0)
+		NewFileName[Loc] = '\0';
+	NewFileName[Loc + 1] = '\0';
+	memcpy(FileName, NewFileName, (Loc + 2) * 2);
+	free(NewFileName);
+}
+
 static NTSTATUS GetFileInfoInternal(SPFS *SpFs, FSP_FSCTL_FILE_INFO *FileInfo, PWSTR FileName)
 {
 	unsigned long long Index = gettablestrindex(FileName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
@@ -119,6 +161,7 @@ static NTSTATUS GetFileInfoInternal(SPFS *SpFs, FSP_FSCTL_FILE_INFO *FileInfo, P
 	FileInfo->ChangeTime = FileInfo->LastWriteTime;
 	FileInfo->IndexNumber = FilenameIndex;
 	FileInfo->HardLinks = 0;
+	FileInfo->EaSize = 0;
 
 	return STATUS_SUCCESS;
 }
@@ -250,17 +293,65 @@ static VOID Close(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext)
 
 static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length, PULONG PBytesTransffered)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+
+	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	unsigned long long FilenameIndex = 0;
+	unsigned long long FilenameSTRIndex = 0;
+	unsigned long long FileSize = 0;
+
+	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+	if (Offset >= FileSize) {
+		return STATUS_END_OF_FILE;
+	}
+	Length = min(Length, FileSize - Offset);
+	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	char* Buf = (char*)calloc(Length + 1, 1);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, FilenameIndex, 0);
+	memcpy(Buffer, Buf, Length);
+	*PBytesTransffered = Length - Offset;
+
+	return STATUS_SUCCESS;
 }
 
 static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length, BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo, PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+
+	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	unsigned long long FilenameIndex = 0;
+	unsigned long long FilenameSTRIndex = 0;
+	unsigned long long FileSize = 0;
+
+	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+
+	if (WriteToEndOfFile) {
+		Offset = FileSize;
+	}
+	if (Offset + Length > FileSize) {
+		trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, Offset, Offset + Length, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks);
+		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+	}
+
+	char* Buf = (char*)calloc(Length + 1, 1);
+	memcpy(Buf, Buffer, Length);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, FilenameIndex, 1);
+	*PBytesTransferred = Length - Offset;
+	GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
+
+	return STATUS_SUCCESS;
 }
 
 static NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, FSP_FSCTL_FILE_INFO *FileInfo)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
+
+	return STATUS_SUCCESS;
 }
 
 static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, FSP_FSCTL_FILE_INFO *FileInfo)
@@ -278,7 +369,21 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, UIN
 
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, UINT64 NewSize, BOOLEAN SetAllocationSize, FSP_FSCTL_FILE_INFO *FileInfo)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+
+	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	unsigned long long FilenameIndex = 0;
+	unsigned long long FilenameSTRIndex = 0;
+	unsigned long long FileSize = 0;
+
+	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+	trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, NewSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+	GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
+
+	return STATUS_SUCCESS;
 }
 
 static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR FileName)
@@ -288,12 +393,37 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR 
 
 static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	unsigned long long FilenameIndex = 0;
+	unsigned long long FilenameSTRIndex = 0;
+	getfilenameindex(FileName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	renamefile(FileName, NewFileName, FilenameSTRIndex, SpFs->Filenames);
+	return STATUS_SUCCESS;
 }
 
 static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	PWSTR SecurityName = FileCtx->Path;
+
+	unsigned long long FilenameIndex = 0;
+	unsigned long long FilenameSTRIndex = 0;
+
+	RemoveFirst(SecurityName);
+	PSECURITY_DESCRIPTOR S = calloc(*PSecurityDescriptorSize, 1);
+	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+
+	unsigned long long Index = gettablestrindex(SecurityName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	unsigned long long FileSize = 0;
+
+	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+	char* buf = (char*)calloc(FileSize + 1, 1);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, (char*&)buf, SpFs->FileInfo, FilenameIndex, 0);
+	ConvertStringSecurityDescriptorToSecurityDescriptorA(buf, SDDL_REVISION_1, &S, (PULONG)PSecurityDescriptorSize);
+	memcpy(SecurityDescriptor, S, *PSecurityDescriptorSize);
+
+	return STATUS_SUCCESS;
 }
 
 static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor)
@@ -301,9 +431,72 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, SECU
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+static BOOLEAN AddDirInfo(SPFS *SpFs, PWSTR Name, PWSTR FileName, PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+{
+	FSP_FSCTL_DIR_INFO* DirInfo = (FSP_FSCTL_DIR_INFO*)calloc(sizeof(FSP_FSCTL_DIR_INFO) + sizeof FileName, 1);
+
+	memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
+	DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + wcslen(FileName) * sizeof(WCHAR));
+	GetFileInfoInternal(SpFs, &DirInfo->FileInfo, Name);
+	memcpy(DirInfo->FileNameBuf, FileName, DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
+
+	return FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred);
+}
+
 static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR Patter, PWSTR Marker, PVOID Buffer, ULONG BufferLength, PULONG PBytesTransferred)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	PWSTR DirectoryName = FileCtx->Path;
+	PWSTR ParentDirectoryName = (PWSTR)calloc(256, 2);
+	PWSTR Suffix = 0;
+
+	memcpy(ParentDirectoryName, DirectoryName, wcslen(DirectoryName) * 2);
+	GetParentName(ParentDirectoryName, Suffix);
+
+	if (DirectoryName[1] != L'\0') {
+		if (!AddDirInfo(SpFs, DirectoryName, (PWSTR)L".", Buffer, BufferLength, PBytesTransferred)) {
+			free(ParentDirectoryName);
+			return STATUS_SUCCESS;
+		}
+
+		if (Marker == 0 || (Marker[0] == L'.' && Marker[1] == L'\0')) {
+			if (!AddDirInfo(SpFs, ParentDirectoryName, (PWSTR)L"..", Buffer, BufferLength, PBytesTransferred)) {
+				free(ParentDirectoryName);
+				return STATUS_SUCCESS;
+			}
+
+			free(ParentDirectoryName);
+			Marker = 0;
+		}
+	}
+
+	unsigned long long Offset = 0;
+	PWSTR FileName = (PWSTR)calloc(256, 2);
+	PWSTR FileNameParent = (PWSTR)calloc(256, 2);
+	PWSTR FileNameSuffix = (PWSTR)calloc(256, 2);
+	for (unsigned long long i = 0; i < SpFs->FilenameCount; i++) {
+		unsigned long long j = 0;
+		for(; j < 256; j++) {
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42) {
+				Offset += j + 1;
+				break;
+			}
+			FileName[j] = SpFs->Filenames[Offset + j] & 0xff;
+		}
+		FileName[j] = 0;
+
+		memcpy(FileNameParent, FileName, (j + 1) * 2);
+		GetParentName(FileNameParent, FileNameSuffix);
+		if (wcscmp(FileNameParent, DirectoryName) == 0 && wcslen(FileNameParent) == wcslen(DirectoryName))
+			if (wcslen(FileNameSuffix) > 0)
+				if (!AddDirInfo(SpFs, FileName, FileNameSuffix, Buffer, BufferLength, PBytesTransferred))
+					return STATUS_SUCCESS;
+	}
+
+	FspFileSystemAddDirInfo(0, Buffer, BufferLength, PBytesTransferred);
+
+	return STATUS_SUCCESS;
 }
 
 static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent, PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
