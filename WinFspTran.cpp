@@ -16,11 +16,11 @@ std::map<unsigned, unsigned> dmap = {};
 
 typedef struct
 {
-    FSP_FILE_SYSTEM *FileSystem;
-    PWSTR Path;
-    PWSTR MountPoint;
+	FSP_FILE_SYSTEM* FileSystem;
+	PWSTR Path;
+	PWSTR MountPoint;
 	HANDLE hDisk;
-    ULONG SectorSize;
+	ULONG SectorSize;
 	ULONGLONG DiskSize;
 	ULONG TableSize;
 	ULONGLONG ExtraTableSize;
@@ -61,7 +61,7 @@ static void ATTRtoattr(unsigned long& ATTR)
 	ATTR = attr;
 }
 
-static void ReplaceBSWFS(PWSTR &FileName)
+static void ReplaceBSWFS(PWSTR& FileName)
 {
 	wchar_t* NewFileName = (wchar_t*)calloc(256, 1);
 
@@ -71,13 +71,13 @@ static void ReplaceBSWFS(PWSTR &FileName)
 			NewFileName[i] = '/';
 		else
 			NewFileName[i] = FileName[i];
-			if (FileName[i] == '\0')
-				break;
+		if (FileName[i] == '\0')
+			break;
 	}
 	FileName = NewFileName;
 }
 
-static void RemoveFirst(PWSTR &FileName)
+static void RemoveFirst(PWSTR& FileName)
 {
 	wchar_t* NewFileName = (wchar_t*)calloc(256, 1);
 
@@ -90,7 +90,7 @@ static void RemoveFirst(PWSTR &FileName)
 	FileName = NewFileName;
 }
 
-static void GetParentName(PWSTR &FileName, PWSTR &Suffix)
+static void GetParentName(PWSTR& FileName, PWSTR& Suffix)
 {
 	wchar_t* NewFileName = (wchar_t*)calloc(256, 2);
 	unsigned Loc = 0;
@@ -100,21 +100,21 @@ static void GetParentName(PWSTR &FileName, PWSTR &Suffix)
 		if (FileName[i] == '\0')
 			break;
 		switch (FileName[i]) {
-			case '/':
-				NewFileName[i] = FileName[i];
-				Loc = i;
-				break;
-			default:
-				NewFileName[i] = FileName[i];
-				break;
+		case '/':
+			NewFileName[i] = FileName[i];
+			Loc = i;
+			break;
+		default:
+			NewFileName[i] = FileName[i];
+			break;
 		}
 	}
 
 	if (Suffix) {
 		wchar_t* NewSuffix = (wchar_t*)calloc(256, 2);
-		
+
 		unsigned i = 0;
-		for(; i < 256; i++)
+		for (; i < 256; i++)
 		{
 			if (FileName[Loc + i + 1] == '\0')
 				break;
@@ -132,7 +132,7 @@ static void GetParentName(PWSTR &FileName, PWSTR &Suffix)
 	free(NewFileName);
 }
 
-static NTSTATUS GetFileInfoInternal(SPFS *SpFs, FSP_FSCTL_FILE_INFO *FileInfo, PWSTR FileName)
+static NTSTATUS GetFileInfoInternal(SPFS* SpFs, FSP_FSCTL_FILE_INFO* FileInfo, PWSTR FileName)
 {
 	unsigned long long Index = gettablestrindex(FileName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	unsigned long long FilenameIndex = 0;
@@ -166,9 +166,9 @@ static NTSTATUS GetFileInfoInternal(SPFS *SpFs, FSP_FSCTL_FILE_INFO *FileInfo, P
 	return STATUS_SUCCESS;
 }
 
-static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem, FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM* FileSystem, FSP_FSCTL_VOLUME_INFO* VolumeInfo)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	unsigned long long FileSize = 0;
 	unsigned long long Index = gettablestrindex(PWSTR(L":"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	unsigned long long FilenameIndex = 0;
@@ -184,13 +184,13 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM *FileSystem, FSP_FSCTL_VOLUME_INFO
 	for (int i = 0; i < FileSize; i++)
 		VolumeInfo->VolumeLabel[i] = buf[i];
 	VolumeInfo->VolumeLabelLength = FileSize * 2;
-	
+
 	return STATUS_SUCCESS;
 }
 
-static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM *FileSystem, PWSTR Label, FSP_FSCTL_VOLUME_INFO *VolumeInfo)
+static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM* FileSystem, PWSTR Label, FSP_FSCTL_VOLUME_INFO* VolumeInfo)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	unsigned long long FileSize = 0;
 	unsigned long long Index = gettablestrindex(PWSTR(L":"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	unsigned long long FilenameIndex = 0;
@@ -213,9 +213,9 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM *FileSystem, PWSTR Label, FSP_FS
 	return STATUS_SUCCESS;
 }
 
-static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName, PUINT32 PFileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, PUINT32 PFileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T* PSecurityDescriptorSize)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	unsigned long long FilenameIndex = 0;
 	unsigned long long FilenameSTRIndex = 0;
 	unsigned long winattrs = 0;
@@ -248,23 +248,23 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName, P
 	return STATUS_SUCCESS;
 }
 
-static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess, UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize, PVOID *PFileContext, FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess, UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize, PVOID* PFileContext, FSP_FSCTL_FILE_INFO* FileInfo)
 {
 	ReplaceBSWFS(FileName);
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess, PVOID *PFileContext, FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess, PVOID* PFileContext, FSP_FSCTL_FILE_INFO* FileInfo)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	ULONG CreateFlags;
-	SPFS_FILE_CONTEXT *FileContext;
+	SPFS_FILE_CONTEXT* FileContext;
 
 	ReplaceBSWFS(FileName);
-	FileContext = (SPFS_FILE_CONTEXT*)calloc(sizeof *FileContext, 1);
+	FileContext = (SPFS_FILE_CONTEXT*)calloc(sizeof * FileContext, 1);
 	if (FileContext == 0)
 		return STATUS_INSUFFICIENT_RESOURCES;
-	memset(FileContext, 0, sizeof *FileContext);
+	memset(FileContext, 0, sizeof * FileContext);
 
 	CreateFlags = FILE_FLAG_BACKUP_SEMANTICS;
 	if (CreateOptions & FILE_DELETE_ON_CLOSE)
@@ -276,25 +276,25 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName, UINT32 CreateO
 	return GetFileInfoInternal(SpFs, FileInfo, FileName);
 }
 
-static NTSTATUS Overwrite(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize, FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32 FileAttributes, BOOLEAN ReplaceFileAttributes, UINT64 AllocationSize, FSP_FSCTL_FILE_INFO* FileInfo)
 {
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR FileName, ULONG Flags)
+static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, ULONG Flags)
 {
 	return;
 }
 
-static VOID Close(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext)
+static VOID Close(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext)
 {
 	return;
 }
 
-static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length, PULONG PBytesTransffered)
+static NTSTATUS Read(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length, PULONG PBytesTransffered)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
-	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 
 	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	unsigned long long FilenameIndex = 0;
@@ -315,10 +315,10 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PVOID Buffe
 	return STATUS_SUCCESS;
 }
 
-static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length, BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo, PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buffer, UINT64 Offset, ULONG Length, BOOLEAN WriteToEndOfFile, BOOLEAN ConstrainedIo, PULONG PBytesTransferred, FSP_FSCTL_FILE_INFO* FileInfo)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
-	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 
 	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	unsigned long long FilenameIndex = 0;
@@ -345,32 +345,32 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PVOID Buff
 	return STATUS_SUCCESS;
 }
 
-static NTSTATUS Flush(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS Flush(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, FSP_FSCTL_FILE_INFO* FileInfo)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
-	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
 
 	return STATUS_SUCCESS;
 }
 
-static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, FSP_FSCTL_FILE_INFO* FileInfo)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
-	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 
 	return GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
 }
 
-static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, UINT32 FileAttributes, UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime, FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32 FileAttributes, UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime, FSP_FSCTL_FILE_INFO* FileInfo)
 {
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, UINT64 NewSize, BOOLEAN SetAllocationSize, FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS SetFileSize(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT64 NewSize, BOOLEAN SetAllocationSize, FSP_FSCTL_FILE_INFO* FileInfo)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
-	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 
 	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	unsigned long long FilenameIndex = 0;
@@ -386,14 +386,14 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, UINT
 	return STATUS_SUCCESS;
 }
 
-static NTSTATUS CanDelete(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR FileName)
+static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName)
 {
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
+static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	unsigned long long FilenameIndex = 0;
 	unsigned long long FilenameSTRIndex = 0;
 	getfilenameindex(FileName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
@@ -401,10 +401,10 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR Fil
 	return STATUS_SUCCESS;
 }
 
-static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T *PSecurityDescriptorSize)
+static NTSTATUS GetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T* PSecurityDescriptorSize)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
-	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	PWSTR SecurityName = FileCtx->Path;
 
 	unsigned long long FilenameIndex = 0;
@@ -426,12 +426,12 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PSEC
 	return STATUS_SUCCESS;
 }
 
-static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor)
+static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor)
 {
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static BOOLEAN AddDirInfo(SPFS *SpFs, PWSTR Name, PWSTR FileName, PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+static BOOLEAN AddDirInfo(SPFS* SpFs, PWSTR Name, PWSTR FileName, PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
 	FSP_FSCTL_DIR_INFO* DirInfo = (FSP_FSCTL_DIR_INFO*)calloc(sizeof(FSP_FSCTL_DIR_INFO) + sizeof FileName, 1);
 
@@ -443,10 +443,10 @@ static BOOLEAN AddDirInfo(SPFS *SpFs, PWSTR Name, PWSTR FileName, PVOID Buffer, 
 	return FspFileSystemAddDirInfo(DirInfo, Buffer, Length, PBytesTransferred);
 }
 
-static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR Patter, PWSTR Marker, PVOID Buffer, ULONG BufferLength, PULONG PBytesTransferred)
+static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Patter, PWSTR Marker, PVOID Buffer, ULONG BufferLength, PULONG PBytesTransferred)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
-	SPFS_FILE_CONTEXT *FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	PWSTR DirectoryName = FileCtx->Path;
 	PWSTR ParentDirectoryName = (PWSTR)calloc(256, 2);
 	PWSTR Suffix = 0;
@@ -477,7 +477,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PW
 	PWSTR FileNameSuffix = (PWSTR)calloc(256, 2);
 	for (unsigned long long i = 0; i < SpFs->FilenameCount; i++) {
 		unsigned long long j = 0;
-		for(; j < 256; j++) {
+		for (; j < 256; j++) {
 			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42) {
 				Offset += j + 1;
 				break;
@@ -499,43 +499,43 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PW
 	return STATUS_SUCCESS;
 }
 
-static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem, PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent, PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
+static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent, PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
 {
 	ReplaceBSWFS(FileName);
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
+static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
 {
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR FileName, PVOID Buffer, SIZE_T Size)
+static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, PVOID Buffer, SIZE_T Size)
 {
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PWSTR FileName, PVOID Buffer, SIZE_T Size)
+static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, PVOID Buffer, SIZE_T Size)
 {
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
+static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static NTSTATUS GetEa(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength, PULONG PBytesTransferred)
+static NTSTATUS GetEa(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength, PULONG PBytesTransferred)
 {
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static NTSTATUS SetEa(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext, PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength, FSP_FSCTL_FILE_INFO *FileInfo)
+static NTSTATUS SetEa(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength, FSP_FSCTL_FILE_INFO* FileInfo)
 {
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-static VOID DispatcherStopped(FSP_FILE_SYSTEM *FileSystem, BOOLEAN Normally)
+static VOID DispatcherStopped(FSP_FILE_SYSTEM* FileSystem, BOOLEAN Normally)
 {
 	return;
 }
@@ -578,60 +578,60 @@ static FSP_FILE_SYSTEM_INTERFACE SpFsInterface =
 };
 
 static
-VOID SpFsDelete(SPFS *SpFs)
+VOID SpFsDelete(SPFS* SpFs)
 {
-    if (SpFs->FileSystem != 0)
+	if (SpFs->FileSystem != 0)
 		FspFileSystemDelete(SpFs->FileSystem);
 
-    if (SpFs->Path != 0)
-	    free(SpFs->Path);
+	if (SpFs->Path != 0)
+		free(SpFs->Path);
 
-    if (SpFs->MountPoint != 0)
-        free(SpFs->MountPoint);
+	if (SpFs->MountPoint != 0)
+		free(SpFs->MountPoint);
 
-    free(SpFs);
+	free(SpFs);
 }
 
 static
-NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 DebugFlags, SPFS **PSpFs)
+NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 DebugFlags, SPFS** PSpFs)
 {
-    WCHAR FullPath[MAX_PATH];
-    ULONG Length;
-    HANDLE Handle;
-    FILETIME CreationTime;
-    DWORD LastError;
-    FSP_FSCTL_VOLUME_PARAMS VolumeParams;
-    SPFS *SpFs = 0;
-    NTSTATUS Result;
+	WCHAR FullPath[MAX_PATH];
+	ULONG Length;
+	HANDLE Handle;
+	FILETIME CreationTime;
+	DWORD LastError;
+	FSP_FSCTL_VOLUME_PARAMS VolumeParams;
+	SPFS* SpFs = 0;
+	NTSTATUS Result;
 
-    *PSpFs = 0;
+	*PSpFs = 0;
 
-    Handle = CreateFileW(
-        Path, FILE_READ_ATTRIBUTES, 0, 0,
-        OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
-    if (Handle == INVALID_HANDLE_VALUE)
-        return FspNtStatusFromWin32(GetLastError());
+	Handle = CreateFileW(
+		Path, FILE_READ_ATTRIBUTES, 0, 0,
+		OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+	if (Handle == INVALID_HANDLE_VALUE)
+		return FspNtStatusFromWin32(GetLastError());
 
-    Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
-    if (0 == Length)
-    {
-        LastError = GetLastError();
-        CloseHandle(Handle);
-        return FspNtStatusFromWin32(LastError);
-    }
-    if (L'\\' == FullPath[Length - 1])
-        FullPath[--Length] = L'\0';
+	Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
+	if (0 == Length)
+	{
+		LastError = GetLastError();
+		CloseHandle(Handle);
+		return FspNtStatusFromWin32(LastError);
+	}
+	if (L'\\' == FullPath[Length - 1])
+		FullPath[--Length] = L'\0';
 
-    if (!GetFileTime(Handle, &CreationTime, 0, 0))
-    {
-        LastError = GetLastError();
-        CloseHandle(Handle);
-        return FspNtStatusFromWin32(LastError);
-    }
+	if (!GetFileTime(Handle, &CreationTime, 0, 0))
+	{
+		LastError = GetLastError();
+		CloseHandle(Handle);
+		return FspNtStatusFromWin32(LastError);
+	}
 
-    CloseHandle(Handle);
+	CloseHandle(Handle);
 
-    // From now on we must goto exit on failure.
+	// From now on we must goto exit on failure.
 
 	unsigned long sectorsize = 512;
 
@@ -764,16 +764,16 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize, filesize + 1, filenameindex, charmap, tablestr, fileinfo, usedblocks);
 	trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize + 1, filesize, filenameindex, charmap, tablestr, fileinfo, usedblocks);
 
-    // Need to init SpaceFS ^
+	// Need to init SpaceFS ^
 
 	unsigned o = 9;
-	SpFs = (SPFS*)malloc(sizeof *SpFs);
+	SpFs = (SPFS*)malloc(sizeof * SpFs);
 	if (SpFs == 0)
 	{
 		Result = STATUS_INSUFFICIENT_RESOURCES;
 		goto exit;
 	}
-	memset(SpFs, 0, sizeof *SpFs);
+	memset(SpFs, 0, sizeof * SpFs);
 
 	// Allocate SpFs ^
 
@@ -802,16 +802,16 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 
 	// Calculate the sector size larger than UINT16 ^
 
-    Length = (Length + 1) * sizeof(WCHAR);
-    SpFs->Path = (PWSTR)malloc(Length);
-    if (SpFs->Path == 0)
-    {
-        Result = STATUS_INSUFFICIENT_RESOURCES;
-        goto exit;
-    }
-    memcpy(SpFs->Path, FullPath, Length);
+	Length = (Length + 1) * sizeof(WCHAR);
+	SpFs->Path = (PWSTR)malloc(Length);
+	if (SpFs->Path == 0)
+	{
+		Result = STATUS_INSUFFICIENT_RESOURCES;
+		goto exit;
+	}
+	memcpy(SpFs->Path, FullPath, Length);
 
-    memset(&VolumeParams, 0, sizeof VolumeParams);
+	memset(&VolumeParams, 0, sizeof VolumeParams);
 	VolumeParams.SectorSize = min(1 << o, 32768);
 	VolumeParams.SectorsPerAllocationUnit = min(sectorsize / 512, 32768);
 	VolumeParams.MaxComponentLength = 255;
@@ -834,7 +834,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	VolumeParams.RejectIrpPriorToTransact0 = 1;
 	VolumeParams.UmFileContextIsUserContext2 = 1;
 	wcscpy_s(VolumeParams.FileSystemName, sizeof VolumeParams.FileSystemName / sizeof(WCHAR), PROGNAME);
-	
+
 	Result = FspFileSystemCreate(PWSTR(L"" FSP_FSCTL_DISK_DEVICE_NAME), &VolumeParams, &SpFsInterface, &SpFs->FileSystem);
 	if (!NT_SUCCESS(Result))
 		goto exit;
@@ -849,7 +849,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	Result = STATUS_SUCCESS;
 
 exit:
-    if (NT_SUCCESS(Result))
+	if (NT_SUCCESS(Result))
 		*PSpFs = SpFs;
 	else if (SpFs != 0)
 		SpFsDelete(SpFs);
@@ -901,58 +901,58 @@ NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 #define argtos(v) if (arge > ++argp) v = *argp; else goto usage
 #define argtol(v) if (arge > ++argp) v = wcstol_deflt(*argp, v); else goto usage
 
-    wchar_t** argp, ** arge;
-    PWSTR Path = 0;
-    PWSTR MountPoint = 0;
-    ULONG SectorSize = 0;
+	wchar_t** argp, ** arge;
+	PWSTR Path = 0;
+	PWSTR MountPoint = 0;
+	ULONG SectorSize = 0;
 	ULONG DebugFlags = 0;
-    NTSTATUS Result;
-    SPFS *SpFs = 0;
+	NTSTATUS Result;
+	SPFS* SpFs = 0;
 
-    for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
-    {
-        if (L'-' != argp[0][0])
-            break;
-        switch (argp[0][1])
-        {
-        case L'?':
-            goto usage;
+	for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
+	{
+		if (L'-' != argp[0][0])
+			break;
+		switch (argp[0][1])
+		{
+		case L'?':
+			goto usage;
 		case L'd':
 			argtol(DebugFlags);
 			break;
-        case L'p':
-            argtos(Path);
+		case L'p':
+			argtos(Path);
 			break;
-        case L'm':
-            argtos(MountPoint);
-            break;
-        case L's':
-            argtol(SectorSize);
-            break;
-        default:
-            goto usage;
-        }
-    }
+		case L'm':
+			argtos(MountPoint);
+			break;
+		case L's':
+			argtol(SectorSize);
+			break;
+		default:
+			goto usage;
+		}
+	}
 
-    if (arge > argp)
-        goto usage;
+	if (arge > argp)
+		goto usage;
 
-    if (!Path || !MountPoint)
-        goto usage;
+	if (!Path || !MountPoint)
+		goto usage;
 
 	EnableBackupRestorePrivileges();
 
-    Result = SpFsCreate(Path, MountPoint, SectorSize, DebugFlags, &SpFs);
-    if (!NT_SUCCESS(Result))
-    {
-        fail((PWSTR) L"Was unable to read/write file or drive.");
-        goto exit;
-    }
+	Result = SpFsCreate(Path, MountPoint, SectorSize, DebugFlags, &SpFs);
+	if (!NT_SUCCESS(Result))
+	{
+		fail((PWSTR)L"Was unable to read/write file or drive.");
+		goto exit;
+	}
 
 	Result = FspFileSystemStartDispatcher(SpFs->FileSystem, 0);
 	if (!NT_SUCCESS(Result))
 	{
-		fail((PWSTR) L"Was unable to start dispatcher.");
+		fail((PWSTR)L"Was unable to start dispatcher.");
 		goto exit;
 	}
 
@@ -962,22 +962,22 @@ NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 	Result = STATUS_SUCCESS;
 
 exit:
-    if (!NT_SUCCESS(Result) && SpFs != 0)
-        SpFsDelete(SpFs);
-    return Result;
+	if (!NT_SUCCESS(Result) && SpFs != 0)
+		SpFsDelete(SpFs);
+	return Result;
 
 usage:
-    static wchar_t usage[] = L""
-        "usage: %s OPTIONS\n"
-        "\n"
-        "options:\n"
+	static wchar_t usage[] = L""
+		"usage: %s OPTIONS\n"
+		"\n"
+		"options:\n"
 		"    -d DebugFlags [-1: enable all debug logs]\n"
-        "    -p Path       [file or drive to use as file system]\n"
-        "    -m MountPoint [X:|*|directory]\n"
-        "    -s SectorSize [used to specify to format and new sectorsize]\n";
+		"    -p Path       [file or drive to use as file system]\n"
+		"    -m MountPoint [X:|*|directory]\n"
+		"    -s SectorSize [used to specify to format and new sectorsize]\n";
 
-    fail(usage, PROGNAME);
-    return STATUS_UNSUCCESSFUL;
+	fail(usage, PROGNAME);
+	return STATUS_UNSUCCESSFUL;
 
 #undef argtos
 #undef argtol
@@ -986,13 +986,13 @@ usage:
 static
 NTSTATUS SvcStop(FSP_SERVICE* Service)
 {
-	SPFS *SpFs = (SPFS*)Service->UserContext;
+	SPFS* SpFs = (SPFS*)Service->UserContext;
 	FspFileSystemStopDispatcher(SpFs->FileSystem);
 	SpFsDelete(SpFs);
 	return STATUS_SUCCESS;
 }
 
-int wmain(int argc, wchar_t **argv)
+int wmain(int argc, wchar_t** argv)
 {
 	if (!NT_SUCCESS(FspLoad(0)))
 		return ERROR_DELAY_LOAD_FAILED;
