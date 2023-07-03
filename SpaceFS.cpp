@@ -52,11 +52,7 @@ void cleantablestr(char* charmap, char*& tablestr) {
 			break;
 		}
 	}
-	char* alc = (char*)calloc(i + 1, 1);
-	for (unsigned long long o = 0; o < i; o++) {
-		alc[o] = tablestr[o];
-	}
-	tablestr = alc;
+	tablestr[i] = 0;
 }
 
 int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned long long& extratablesize, char*& table) {
@@ -91,6 +87,7 @@ void resetcloc(unsigned long long& cloc, char*& cblock, unsigned long long clen,
 		break;
 	}
 	cloc = 0;
+	free(cblock);
 	cblock = (char*)calloc(clen, 1);
 }
 
@@ -178,6 +175,7 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 			break;
 		}
 	}
+	free(cblock);
 	filesize = o;
 	return 0;
 }
@@ -285,6 +283,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 			break;
 		}
 	}
+	free(cblock);
 	unsigned long bytecount = 0;
 	unsigned long o = 0;
 	std::string s;
@@ -320,12 +319,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 	if (s == "") {
 		return 1;
 	}
-	block = (char*)calloc(strlen(s.c_str()), 1);
-	unsigned long long i = 0;
-	for (; i < strlen(s.c_str()); i++) {
-		block[i] = s[i];
-	}
-	blockstrlen = i;
+	blockstrlen = strlen(s.c_str());
 	return 0;
 }
 
@@ -362,6 +356,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		}
 		o = 1;
 		cleantablestr(charmap, tablestr);
+		free(alc1);
 	}
 	if (size % sectorsize != 0) {
 		findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, size % sectorsize, usedblocks);
@@ -388,6 +383,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 			index++;
 		}
 		cleantablestr(charmap, tablestr);
+		free(alc1);
 	}
 	return 0;
 }
@@ -449,6 +445,8 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 		cleantablestr(charmap, tablestr);
 		index = index - pindex + off;
 		filesize -= size % sectorsize;
+		free(alc1);
+		free(alc2);
 	}
 	for (unsigned long long p = 0; p < size / sectorsize; p++) { // Dealloc entire block out of alc2
 		unsigned long long pindex = getpindex(index, tablestr);
@@ -480,6 +478,8 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 		cleantablestr(charmap, tablestr);
 		index = index - pindex + off;
 		filesize -= sectorsize;
+		free(alc1);
+		free(alc2);
 	}
 	return 0;
 }
@@ -529,7 +529,7 @@ int desimp(char* charmap, char*& tablestr) {
 			tablelen = i + 1;
 		}
 	}
-	char* alc = (char*)calloc(256, 1);
+	char* alc = NULL;
 	unsigned long long clen = 256;
 	char* cblock = (char*)calloc(clen, 1);
 	unsigned long long cloc = 0;
@@ -629,7 +629,10 @@ int desimp(char* charmap, char*& tablestr) {
 			break;
 		}
 	}
-	tablestr = newtablestr;
+	free(cblock);
+	tablestr = (char*)realloc(tablestr, strlen(newtablestr));
+	memcpy(tablestr, newtablestr, strlen(newtablestr));
+	free(newtablestr);
 	cleantablestr(charmap, tablestr);
 	return 0;
 }
@@ -643,7 +646,7 @@ int simp(char* charmap, char*& tablestr) {
 			tablelen = i + 1;
 		}
 	}
-	char* alc = (char*)calloc(256, 1);
+	char* alc = NULL;
 	unsigned long long clen = 256;
 	char* cblock = (char*)calloc(clen, 1);
 	unsigned long long cloc = 0;
@@ -750,7 +753,10 @@ int simp(char* charmap, char*& tablestr) {
 			break;
 		}
 	}
-	tablestr = newtablestr;
+	free(cblock);
+	tablestr = (char*)realloc(tablestr, strlen(newtablestr));
+	memcpy(tablestr, newtablestr, strlen(newtablestr));
+	free(newtablestr);
 	cleantablestr(charmap, tablestr);
 	return 0;
 }
@@ -904,6 +910,7 @@ int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenam
 	}
 	memcpy(filenames + filenamestrindex - strlen((char*)oldfilename) + strlen((char*)newfilename), files, afterlen + 1);
 	filenamestrindex -= strlen((char*)oldfilename) - strlen((char*)newfilename);
+	free(files);
 	return 0;
 }
 
@@ -1147,13 +1154,9 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 	len = min(len + start, filesize - start);
 	index++;
 	pindex++;
-	char* alc = (char*)calloc(pindex + 1, 1);
-	for (unsigned long long i = 0; i < pindex; i++) {
-		alc[i] = tablestr[index - pindex + i];
-	}
 	unsigned long long block = 0;
 	unsigned long long rblock = 0;
-	char* alc1 = NULL;
+	char* alc = NULL;
 	unsigned long long clen = 256;
 	char* cblock = (char*)calloc(clen, 1);
 	unsigned long long cloc = 0;
@@ -1164,7 +1167,7 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 	unsigned step = 0;
 	unsigned range = 0;
 	for (unsigned long long i = 0; i < pindex; i++) {
-		switch (alc[i] & 0xff) {
+		switch (tablestr[index - pindex + i] & 0xff) {
 		case 59: //;
 			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
 			step++;
@@ -1191,19 +1194,20 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 		default: //0-9
 			if (cloc > clen - 2) {
 				clen += 256;
-				alc1 = (char*)realloc(cblock, clen);
-				if (alc1 == NULL) {
+				alc = (char*)realloc(cblock, clen);
+				if (alc == NULL) {
 					free(cblock);
 					return 1;
 				}
-				cblock = alc1;
-				alc1 = NULL;
+				cblock = alc;
+				alc = NULL;
 			}
-			cblock[cloc] = alc[i];
+			cblock[cloc] = tablestr[index - pindex + i];
 			cloc++;
 			break;
 		}
 	}
+	free(cblock);
 	time_t ltime;
 	time(&ltime);
 	double ctime = (double)ltime;
@@ -1220,6 +1224,7 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 			dealloc(sectorsize, charmap, tablestr, index, size, size % sectorsize);
 			alloc(sectorsize, disksize, tablesize, charmap, tablestr, index, newsize - (size - size % sectorsize), usedblocks);
 			readwritefile(hDisk, sectorsize, index, size - size % sectorsize, size % sectorsize, disksize, tablestr, temp, fileinfo, filenameindex, 1);
+			free(temp);
 			size += newsize - size;
 		}
 		alloc(sectorsize, disksize, tablesize, charmap, tablestr, index, newsize - size, usedblocks);
