@@ -411,7 +411,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		if (!block) {
 			return 1;
 		}
-		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + 1);
+		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + strlen(alc1) + 1);
 		if (!alc2) {
 			free(alc1);
 			return 1;
@@ -439,7 +439,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		if (!block) {
 			return 1;
 		}
-		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + 1);
+		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + strlen(alc1) + 1);
 		if (!alc2) {
 			free(alc1);
 			return 1;
@@ -615,11 +615,12 @@ unsigned long long gettablestrindex(PWSTR filename, char* filenames, char* table
 }
 
 int desimp(char* charmap, char*& tablestr) {
-	char* newtablestr = (char*)calloc(strlen(tablestr), 1);
+	char* newtablestr = (char*)calloc(strlen(tablestr) + 1, 1);
 	if (!newtablestr)
 		return 1;
 	unsigned long long newloc = 0;
 	unsigned long long tablelen = 0;
+	unsigned long long newtablelen = strlen(tablestr);
 	for (unsigned long long i = 0; i < strlen(tablestr); i++) {
 		if ((tablestr[i] & 0xff) == 46) {
 			tablelen = i + 1;
@@ -714,14 +715,26 @@ int desimp(char* charmap, char*& tablestr) {
 			range = 0;
 			break;
 		default: //0-9
-			if (cloc > clen - 2) {
+			if (cloc > clen - 3) {
 				clen += 256;
 				alc = (char*)realloc(cblock, clen);
 				if (!alc) {
 					free(cblock);
+					free(newtablestr);
 					return 1;
 				}
 				cblock = alc;
+				alc = NULL;
+			}
+			if (i > newtablelen - 3) {
+				newtablelen += 256;
+				alc = (char*)realloc(newtablestr, newtablelen);
+				if (!alc) {
+					free(cblock);
+					free(newtablestr);
+					return 1;
+				}
+				newtablestr = alc;
 				alc = NULL;
 			}
 			cblock[cloc] = tablestr[i];
@@ -743,7 +756,7 @@ int desimp(char* charmap, char*& tablestr) {
 }
 
 int simp(char* charmap, char*& tablestr) {
-	char* newtablestr = (char*)calloc(strlen(tablestr), 1);
+	char* newtablestr = (char*)calloc(strlen(tablestr) + 1, 1);
 	unsigned long long newloc = 0;
 	unsigned long long tablelen = 0;
 	for (unsigned long long i = 0; i < strlen(tablestr); i++) {
