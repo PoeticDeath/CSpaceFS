@@ -320,11 +320,17 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 		return 1;
 	}
 	blockstrlen = strlen(s.c_str());
+	alc = (char*)realloc(block, blockstrlen + 1);
+	if (alc == NULL) {
+		return 1;
+	}
+	block = alc;
+	memcpy(block, s.c_str(), blockstrlen);
 	return 0;
 }
 
 int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long tablesize, char* charmap, char*& tablestr, unsigned long long& index, unsigned long long size, unsigned long long& usedblocks) {
-	char* block = NULL;
+	char* block = (char*)calloc(256, 1);
 	unsigned long long blockstrlen = 0;
 	unsigned long long o = 0;
 	if ((tablestr[index - 1] & 0xff) != 46 && index != 0) {
@@ -385,6 +391,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		cleantablestr(charmap, tablestr);
 		free(alc1);
 	}
+	free(block);
 	return 0;
 }
 
@@ -630,7 +637,12 @@ int desimp(char* charmap, char*& tablestr) {
 		}
 	}
 	free(cblock);
-	tablestr = (char*)realloc(tablestr, strlen(newtablestr));
+	alc = (char*)realloc(tablestr, strlen(newtablestr) + 1);
+	if (alc == NULL) {
+		free(newtablestr);
+		return 1;
+	}
+	tablestr = alc;
 	memcpy(tablestr, newtablestr, strlen(newtablestr));
 	free(newtablestr);
 	cleantablestr(charmap, tablestr);
