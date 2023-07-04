@@ -6,6 +6,49 @@
 #include <string>
 #include "SpaceFS.h"
 
+static inline unsigned upperchar(unsigned c)
+{
+	/*
+	 * Bit-twiddling upper case char:
+	 *
+	 * - Let signbit(x) = x & 0x100 (treat bit 0x100 as "signbit").
+	 * - 'A' <= c && c <= 'Z' <=> s = signbit(c - 'A') ^ signbit(c - ('Z' + 1)) == 1
+	 *     - c >= 'A' <=> c - 'A' >= 0      <=> signbit(c - 'A') = 0
+	 *     - c <= 'Z' <=> c - ('Z' + 1) < 0 <=> signbit(c - ('Z' + 1)) = 1
+	 * - Bit 0x20 = 0x100 >> 3 toggles uppercase to lowercase and vice-versa.
+	 *
+	 * This is actually faster than `(c - 'a' <= 'z' - 'a') ? (c & ~0x20) : c`, even
+	 * when compiled using cmov conditional moves at least on this system (i7-1065G7).
+	 *
+	 * See https://godbolt.org/z/ebv131Wrh
+	 */
+	unsigned s = ((c - 'a') ^ (c - ('z' + 1))) & 0x100;
+	return c & ~(s >> 3);
+}
+
+static inline int wcsincmp(const wchar_t* s0, const wchar_t* t0, int n)
+{
+	/* Use fast loop for ASCII and fall back to CompareStringW for general case. */
+	const wchar_t* s = s0;
+	const wchar_t* t = t0;
+	int v = 0;
+	for (const void* e = t + n; e > (const void*)t; ++s, ++t)
+	{
+		unsigned sc = *s, tc = *t;
+		if (0xffffff80 & (sc | tc))
+		{
+			v = CompareStringW(LOCALE_INVARIANT, NORM_IGNORECASE, s0, n, t0, n);
+			if (0 != v)
+				return v - 2;
+			else
+				return _wcsnicmp(s, t, n);
+		}
+		if (0 != (v = upperchar(sc) - upperchar(tc)) || !tc)
+			break;
+	}
+	return v;/*(0 < v) - (0 > v);*/
+}
+
 void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& len) {
 	if (len % 2 != 0) {
 		len++;
@@ -14,27 +57,46 @@ void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& l
 			return;
 		}
 		str = alc;
+		alc = NULL;
 		str[len - 1] = 32;
 		str[len - 2] = 46;
 	}
-	char* bytes = (char*)calloc(len / 2, 1);
+	char* bytes = (char*)calloc(len / 2 + 1, 1);
+	if (bytes == NULL) {
+		return;
+	}
 	for (unsigned long long i = 0; i < len; i += 2) {
 		bytes[i / 2] = emap[str[i] << 8 | str[i + 1]];
 	}
-	free(str);
-	str = bytes;
+	char* alc = (char*)realloc(str, len / 2 + 1);
+	if (alc == NULL) {
+		free(bytes);
+		return;
+	}
+	str = alc;
+	memcpy(str, bytes, len / 2);
+	free(bytes);
 }
 
 void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long len) {
 	char* str = (char*)calloc(len * 2, 1);
+	if (str == NULL) {
+		return;
+	}
 	unsigned d;
 	for (unsigned long long i = 0; i < len; i++) {
 		d = dmap[bytes[i] & 0xff];
 		str[i * 2] = d >> 8;
 		str[i * 2 + 1] = d & 0xff;
 	}
-	free(bytes);
-	bytes = str;
+	char* alc = (char*)realloc(bytes, len * 2 + 1);
+	if (alc == NULL) {
+		free(str);
+		return;
+	}
+	bytes = alc;
+	memcpy(bytes, str, len * 2);
+	free(str);
 }
 
 void cleantablestr(char* charmap, char*& tablestr) {
@@ -492,6 +554,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 }
 
 void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filenamecount, unsigned long long& filenameindex, unsigned long long& filenamestrindex) {
+	unsigned long long filenamesize = wcslen(filename);
 	for (; filenameindex < filenamecount;) {
 		wchar_t file[256] = { 0 };
 		unsigned i = 0;
@@ -502,7 +565,7 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 			}
 			file[i] = filenames[filenamestrindex + i];
 		}
-		if (wcscmp(file, filename) == 0 && wcslen(file) == wcslen(filename)) {
+		if (wcsincmp(file, filename, filenamesize) == 0 && wcslen(file) == filenamesize) {
 			break;
 		}
 		if ((filenames[filenamestrindex - 1] & 0xff) == 255) {
@@ -911,17 +974,27 @@ int deletefile(unsigned long long index, unsigned long long filenameindex, unsig
 
 int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenamestrindex, char*& filenames) {
 	unsigned long long oldlen = strlen(filenames);
+	char* coldfilename = (char*)calloc(wcslen(oldfilename) + 1, 1);
+	char* cnewfilename = (char*)calloc(wcslen(newfilename) + 1, 1);
 	char* files = (char*)calloc(oldlen - filenamestrindex + 1, 1);
+	for (unsigned long long i = 0; i < wcslen(oldfilename); i++) {
+		coldfilename[i] = oldfilename[i] & 0xff;
+	}
+	for (unsigned long long i = 0; i < wcslen(newfilename); i++) {
+		cnewfilename[i] = newfilename[i] & 0xff;
+	}
 	memcpy(files, filenames + filenamestrindex, oldlen - filenamestrindex);
-	memcpy(filenames + filenamestrindex - strlen((char*)oldfilename), newfilename, strlen((char*)newfilename));
+	memcpy(filenames + filenamestrindex - strlen(coldfilename), cnewfilename, strlen(cnewfilename));
 	unsigned long long afterlen = 0;
 	for (; afterlen < strlen(files); afterlen++) {
 		if ((files[afterlen] & 0xff) == 254) {
 			break;
 		}
 	}
-	memcpy(filenames + filenamestrindex - strlen((char*)oldfilename) + strlen((char*)newfilename), files, afterlen + 1);
-	filenamestrindex -= strlen((char*)oldfilename) - strlen((char*)newfilename);
+	memcpy(filenames + filenamestrindex - strlen(coldfilename) + strlen(cnewfilename), files, afterlen + 1);
+	filenamestrindex -= strlen(coldfilename) - strlen(cnewfilename);
+	free(coldfilename);
+	free(cnewfilename);
 	free(files);
 	return 0;
 }
@@ -1435,7 +1508,7 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	chwinattrs(fileinfo, filenamecount, filenameindex, winattrs, 0);
 	std::cout << (time_t)time << std::endl;
 	std::cout << gid << " " << uid << " " << mode << " " << winattrs << std::endl;
-	renamefile((PWSTR)"/Test.bin", (PWSTR)"/Testing.txt", filenamestrindex, filenames);
+	renamefile((PWSTR)L"/Test.bin", (PWSTR)L"/Testing.txt", filenamestrindex, filenames);
 	std::cout << filenames << std::endl;
 	deletefile(index, filenameindex, filenamestrindex, filenamecount, fileinfo, filenames, tablestr);
 	chtime(fileinfo, 0, time, 4);

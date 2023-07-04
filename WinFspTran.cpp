@@ -413,8 +413,26 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	unsigned long long FilenameIndex = 0;
 	unsigned long long FilenameSTRIndex = 0;
+
+	ReplaceBSWFS(FileName);
+	ReplaceBSWFS(NewFileName);
 	getfilenameindex(FileName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 	renamefile(FileName, NewFileName, FilenameSTRIndex, SpFs->Filenames);
+
+	PWSTR SecurityName = (PWSTR)calloc(256, sizeof(wchar_t));
+	memcpy(SecurityName, FileName, wcslen(FileName) * sizeof(wchar_t));
+	RemoveFirst(SecurityName);
+	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+
+	PWSTR NewSecurityName = (PWSTR)calloc(256, sizeof(wchar_t));
+	memcpy(NewSecurityName, NewFileName, wcslen(NewFileName) * sizeof(wchar_t));
+	RemoveFirst(NewSecurityName);
+	renamefile(SecurityName, NewSecurityName, FilenameSTRIndex, SpFs->Filenames);
+
+	free(SecurityName);
+	free(NewSecurityName);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+
 	return STATUS_SUCCESS;
 }
 
