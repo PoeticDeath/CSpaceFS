@@ -69,7 +69,7 @@ static void ReplaceBSWFS(PWSTR& FileName)
 		return;
 	}
 
-	for(int i = 0; i < 256; i++)
+	for (int i = 0; i < 256; i++)
 	{
 		if (FileName[i] == '\\')
 			NewFileName[i] = '/';
@@ -91,7 +91,7 @@ static void RemoveFirst(PWSTR& FileName)
 	}
 
 	int i = 0;
-	for(; i < 256; i++)
+	for (; i < 256; i++)
 	{
 		NewFileName[i] = FileName[i + 1];
 		if (FileName[i + 1] == '\0')
@@ -99,7 +99,7 @@ static void RemoveFirst(PWSTR& FileName)
 			break;
 		}
 	}
-	
+
 	memcpy(FileName, NewFileName, (static_cast<unsigned long long>(i) + 1) * sizeof(wchar_t));
 	free(NewFileName);
 }
