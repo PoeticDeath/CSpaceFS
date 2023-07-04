@@ -333,7 +333,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buffe
 		return STATUS_INSUFFICIENT_RESOURCES;
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, FilenameIndex, 0);
 	memcpy(Buffer, Buf, Length);
-	*PBytesTransffered = Length - Offset;
+	*PBytesTransffered = Length;
 	free(Buf);
 
 	return STATUS_SUCCESS;
@@ -365,7 +365,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buff
 		return STATUS_INSUFFICIENT_RESOURCES;
 	memcpy(Buf, Buffer, Length);
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, FilenameIndex, 1);
-	*PBytesTransferred = Length - Offset;
+	*PBytesTransferred = Length;
 	GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
 	free(Buf);
 

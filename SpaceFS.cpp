@@ -402,19 +402,16 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 	if ((tablestr[index - 1] & 0xff) != 46 && index) {
 		o++;
 	}
+	char* alc1 = (char*)calloc(tablestrlen - index + 1, 1);
+	for (unsigned long long i = 0; i < tablestrlen - index; i++) {
+		alc1[i] = tablestr[index + i];
+	}
 	for (unsigned long long p = 0; p < size / sectorsize; p++) {
 		findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, sectorsize, usedblocks);
 		if (!block) {
 			return 1;
 		}
-		char* alc1 = (char*)calloc(tablestrlen - index, 1);
-		if (!alc1) {
-			return 1;
-		}
-		for (unsigned long long i = 0; i < tablestrlen - index; i++) {
-			alc1[i] = tablestr[index + i];
-		}
-		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + 1);
+		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + 1);
 		if (!alc2) {
 			free(alc1);
 			return 1;
@@ -425,29 +422,24 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		for (unsigned long long i = 0; i < blockstrlen; i++) {
 			alc2[index + o + i] = block[i];
 		}
-		for (unsigned long long i = 0; i < tablestrlen - index; i++) {
+		for (unsigned long long i = 0; i < strlen(alc1); i++) {
 			alc2[index + o + blockstrlen + i] = alc1[i];
 		}
 		tablestr = alc2;
+		alc2 = NULL;
 		index += blockstrlen;
 		if (o) {
 			index++;
 		}
 		o = 1;
 		cleantablestr(charmap, tablestr);
-		free(alc1);
 	}
 	if (size % sectorsize) {
 		findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, size % sectorsize, usedblocks);
-		if (!block)
+		if (!block) {
 			return 1;
-		char* alc1 = (char*)calloc(tablestrlen - index, 1);
-		if (!alc1)
-			return 1;
-		for (unsigned long long i = 0; i < tablestrlen - index; i++) {
-			alc1[i] = tablestr[index + i];
 		}
-		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + 1);
+		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + 1);
 		if (!alc2) {
 			free(alc1);
 			return 1;
@@ -457,35 +449,42 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		for (unsigned long long i = 0; i < blockstrlen; i++) {
 			alc2[index + o + i] = block[i];
 		}
-		for (unsigned long long i = 0; i < tablestrlen - index; i++) {
+		for (unsigned long long i = 0; i < strlen(alc1); i++) {
 			alc2[index + blockstrlen + o + i] = alc1[i];
 		}
 		tablestr = alc2;
+		alc2 = NULL;
 		index += blockstrlen;
-		if (o)
+		if (o) {
 			index++;
+		}
 		cleantablestr(charmap, tablestr);
-		free(alc1);
 	}
 	free(block);
+	free(alc1);
 	return 0;
 }
 
 int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned long long& index, unsigned long long filesize, unsigned long long size) {
+	char* alc = NULL;
+	char* alc1 = (char*)calloc(strlen(tablestr) - index, 1);
+	char* alc2 = (char*)calloc(1, 1);
+	if (!alc1) {
+		return 1;
+	}
+	for (unsigned long long i = 0; i < strlen(tablestr) - index; i++) {
+		alc1[i] = tablestr[index + i];
+	}
 	if (size % sectorsize) {
 		unsigned long long pindex = getpindex(index, tablestr);
-		char* alc1 = (char*)calloc(strlen(tablestr) - index, 1);
-		if (!alc1) {
-			return 1;
-		}
-		for (unsigned long long i = 0; i < strlen(tablestr) - index; i++) {
-			alc1[i] = tablestr[index + i];
-		}
-		char* alc2 = (char*)calloc(pindex + 1, 1);
-		if (!alc2) {
+		alc = (char*)realloc(alc2, pindex + 1);
+		if (!alc) {
 			free(alc1);
+			free(alc2);
 			return 1;
 		}
+		alc2 = alc;
+		alc = NULL;
 		for (unsigned long long i = 0; i < pindex; i++) {
 			alc2[i] = tablestr[index - pindex + i];
 		}
@@ -535,22 +534,19 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 		cleantablestr(charmap, tablestr);
 		index = index - pindex + off;
 		filesize -= size % sectorsize;
-		free(alc1);
-		free(alc2);
 	}
 	for (unsigned long long p = 0; p < size / sectorsize; p++) { // Dealloc entire block out of alc2
 		unsigned long long pindex = getpindex(index, tablestr);
-		char* alc1 = (char*)calloc(strlen(tablestr) - index, 1);
-		if (!alc1) {
+		alc = (char*)realloc(alc2, pindex + 1);
+		if (!alc) {
+			free(alc1);
+			free(alc2);
 			return 1;
 		}
+		alc2 = alc;
+		alc = NULL;
 		for (unsigned long long i = 0; i < strlen(tablestr) - index; i++) {
 			alc1[i] = tablestr[index + i];
-		}
-		char* alc2 = (char*)calloc(pindex + 1, 1);
-		if (!alc2) {
-			free(alc1);
-			return 1;
 		}
 		for (unsigned long long i = 0; i < pindex; i++) {
 			alc2[i] = tablestr[index - pindex + i];
@@ -575,9 +571,9 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 		cleantablestr(charmap, tablestr);
 		index = index - pindex + off;
 		filesize -= sectorsize;
-		free(alc1);
-		free(alc2);
 	}
+	free(alc1);
+	free(alc2);
 	return 0;
 }
 
