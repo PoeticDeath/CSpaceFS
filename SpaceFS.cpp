@@ -50,10 +50,10 @@ static inline int wcsincmp(const wchar_t* s0, const wchar_t* t0, int n)
 }
 
 void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& len) {
-	if (len % 2 != 0) {
+	if (len % 2) {
 		len++;
 		char* alc = (char*)realloc(str, len);
-		if (alc == NULL) {
+		if (!alc) {
 			return;
 		}
 		str = alc;
@@ -62,14 +62,14 @@ void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& l
 		str[len - 2] = 46;
 	}
 	char* bytes = (char*)calloc(len / 2 + 1, 1);
-	if (bytes == NULL) {
+	if (!bytes) {
 		return;
 	}
 	for (unsigned long long i = 0; i < len; i += 2) {
 		bytes[i / 2] = emap[str[i] << 8 | str[i + 1]];
 	}
 	char* alc = (char*)realloc(str, len / 2 + 1);
-	if (alc == NULL) {
+	if (!alc) {
 		free(bytes);
 		return;
 	}
@@ -80,7 +80,7 @@ void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& l
 
 void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long len) {
 	char* str = (char*)calloc(len * 2, 1);
-	if (str == NULL) {
+	if (!str) {
 		return;
 	}
 	unsigned d;
@@ -90,7 +90,7 @@ void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long 
 		str[i * 2 + 1] = d & 0xff;
 	}
 	char* alc = (char*)realloc(bytes, len * 2 + 1);
-	if (alc == NULL) {
+	if (!alc) {
 		free(str);
 		return;
 	}
@@ -118,12 +118,12 @@ void cleantablestr(char* charmap, char*& tablestr) {
 }
 
 int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned long long& extratablesize, char*& table) {
-	extratablesize = (tablesize * sectorsize);
+	extratablesize = (tablesize * static_cast<unsigned long long>(sectorsize));
 	char* alc = NULL;
 	alc = (char*)realloc(table, extratablesize);
-	if (alc == NULL) {
+	if (!alc) {
 		tablesize = 1 + table[4] + (table[3] << 8) + (table[2] << 16) + (table[1] << 24);
-		extratablesize = (tablesize * sectorsize);
+		extratablesize = (tablesize * static_cast<unsigned long long>(sectorsize));
 		return 1;
 	}
 	table = alc;
@@ -157,7 +157,7 @@ unsigned long long getpindex(unsigned long long index, char* tablestr) {
 	unsigned long long pindex = 0;
 	while ((tablestr[index - pindex - 1] & 0xff) != 46) {
 		pindex++;
-		if (index - pindex == 0) {
+		if (!(index - pindex)) {
 			break;
 		}
 	}
@@ -166,13 +166,16 @@ unsigned long long getpindex(unsigned long long index, char* tablestr) {
 
 int getfilesize(unsigned long sectorsize, unsigned long long index, char* tablestr, unsigned long long& filesize) {
 	unsigned long long pindex = getpindex(index, tablestr);
-	if (index == 0 || pindex == 0) {
+	if (!index || !pindex) {
 		filesize = 0;
 		return 0;
 	}
 	unsigned long long o = 0;
 	unsigned long long clen = 256;
 	char* cblock = (char*)calloc(clen, 1);
+	if (!cblock) {
+		return 1;
+	}
 	char* alc = NULL;
 	unsigned long long cloc = 0;
 	std::string str0;
@@ -189,13 +192,13 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 			break;
 		case 46: //.
 			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
-			if (step != 0) {
+			if (step) {
 				o += std::stoull(str2, 0, 10) - std::stoull(str1, 0, 10);
 			}
-			else if (range == 0) {
+			else if (!range) {
 				o += sectorsize;
 			}
-			if (range != 0) {
+			if (range) {
 				o += (sectorsize * (std::stoull(str0, 0, 10) - std::stoull(rstr, 0, 10) + 1));
 			}
 			step = 0;
@@ -209,13 +212,13 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 			break;
 		case 44: //,
 			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
-			if (step != 0) {
+			if (step) {
 				o += std::stoull(str2, 0, 10) - std::stoull(str1, 0, 10);
 			}
-			else if (range == 0) {
+			else if (!range) {
 				o += sectorsize;
 			}
-			if (range != 0) {
+			if (range) {
 				o += (sectorsize * (std::stoull(str0, 0, 10) - std::stoull(rstr, 0, 10) + 1));
 			}
 			step = 0;
@@ -225,7 +228,7 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 			if (cloc > clen - 2) {
 				clen += 256;
 				alc = (char*)realloc(cblock, clen);
-				if (alc == NULL) {
+				if (!alc) {
 					free(cblock);
 					return 1;
 				}
@@ -246,8 +249,8 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 	if (str0 == "") {
 		return;
 	}
-	if (range == 0) {
-		if (step == 0) {
+	if (!range) {
+		if (!step) {
 			list[str0] = 0;
 			usedblocks++;
 			//std::cout << str0 << std::endl;
@@ -260,7 +263,7 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 		}
 		//std::cout << rstr << "-" << str0 << ",";
 	}
-	if (step != 0) {
+	if (step) {
 		for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < std::strtoul(str2.c_str(), 0, 10); i++) {
 			if (i / 64 < std::strtoul(str2.c_str(), 0, 10) / 64) {
 				partlist[str0][i / 64] |= 0xffffffffffffffff << i % 64;
@@ -333,7 +336,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 			if (cloc > clen - 2) {
 				clen += 256;
 				alc = (char*)realloc(cblock, clen);
-				if (alc == NULL) {
+				if (!alc) {
 					free(cblock);
 					return 1;
 				}
@@ -356,7 +359,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 				bytecount = blocksize;
 			}
 			while (bytecount < blocksize && o < sectorsize) {
-				if ((partlist[std::to_string(i)][o / 64] & static_cast<unsigned long long>(1) << o % 64) == 0) {
+				if (!(partlist[std::to_string(i)][o / 64] & static_cast<unsigned long long>(1) << o % 64)) {
 					bytecount++;
 				}
 				else {
@@ -368,7 +371,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 				}
 			}
 			if (bytecount == blocksize) {
-				if (blocksize % sectorsize != 0) {
+				if (blocksize % sectorsize) {
 					s = std::to_string(i) + ";" + std::to_string(o) + ";" + std::to_string(o + bytecount);
 				}
 				else {
@@ -382,74 +385,85 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 		return 1;
 	}
 	blockstrlen = strlen(s.c_str());
-	alc = (char*)realloc(block, blockstrlen + 1);
-	if (alc == NULL) {
+	char* alc1 = (char*)realloc(block, blockstrlen + 1);
+	if (!alc1) {
 		return 1;
 	}
-	block = alc;
+	block = alc1;
 	memcpy(block, s.c_str(), blockstrlen);
 	return 0;
 }
 
 int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long tablesize, char* charmap, char*& tablestr, unsigned long long& index, unsigned long long size, unsigned long long& usedblocks) {
 	char* block = (char*)calloc(256, 1);
+	unsigned long long tablestrlen = strlen(tablestr);
 	unsigned long long blockstrlen = 0;
 	unsigned long long o = 0;
-	if ((tablestr[index - 1] & 0xff) != 46 && index != 0) {
+	if ((tablestr[index - 1] & 0xff) != 46 && index) {
 		o++;
 	}
 	for (unsigned long long p = 0; p < size / sectorsize; p++) {
 		findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, sectorsize, usedblocks);
-		if (block == NULL) {
+		if (!block) {
 			return 1;
 		}
-		char* alc1 = (char*)calloc(strlen(tablestr) - index, 1);
-		for (unsigned long long i = 0; i < strlen(tablestr) - index; i++) {
+		char* alc1 = (char*)calloc(tablestrlen - index, 1);
+		if (!alc1) {
+			return 1;
+		}
+		for (unsigned long long i = 0; i < tablestrlen - index; i++) {
 			alc1[i] = tablestr[index + i];
 		}
-		char* alc2 = (char*)realloc(tablestr, strlen(tablestr) + blockstrlen + 1);
-		if (o != 0) {
+		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + 1);
+		if (!alc2) {
+			free(alc1);
+			return 1;
+		}
+		if (o) {
 			alc2[index] = 44;
 		}
 		for (unsigned long long i = 0; i < blockstrlen; i++) {
 			alc2[index + o + i] = block[i];
 		}
-		for (unsigned long long i = 0; i < strlen(tablestr) - index; i++) {
+		for (unsigned long long i = 0; i < tablestrlen - index; i++) {
 			alc2[index + o + blockstrlen + i] = alc1[i];
 		}
 		tablestr = alc2;
 		index += blockstrlen;
-		if (o != 0) {
+		if (o) {
 			index++;
 		}
 		o = 1;
 		cleantablestr(charmap, tablestr);
 		free(alc1);
 	}
-	if (size % sectorsize != 0) {
+	if (size % sectorsize) {
 		findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, size % sectorsize, usedblocks);
-		if (block == NULL) {
+		if (!block)
 			return 1;
-		}
-		char* alc1 = (char*)calloc(strlen(tablestr) - index, 1);
-		for (unsigned long long i = 0; i < strlen(tablestr) - index; i++) {
+		char* alc1 = (char*)calloc(tablestrlen - index, 1);
+		if (!alc1)
+			return 1;
+		for (unsigned long long i = 0; i < tablestrlen - index; i++) {
 			alc1[i] = tablestr[index + i];
 		}
-		char* alc2 = (char*)realloc(tablestr, strlen(tablestr) + blockstrlen + 1);
-		if (o != 0) {
-			alc2[index] = 44;
+		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + 1);
+		if (!alc2) {
+			free(alc1);
+			return 1;
 		}
+		if (o)
+			alc2[index] = 44;
 		for (unsigned long long i = 0; i < blockstrlen; i++) {
 			alc2[index + o + i] = block[i];
 		}
-		for (unsigned long long i = 0; i < strlen(tablestr) - index; i++) {
+		for (unsigned long long i = 0; i < tablestrlen - index; i++) {
 			alc2[index + blockstrlen + o + i] = alc1[i];
 		}
 		tablestr = alc2;
 		index += blockstrlen;
-		if (o != 0) {
+		if (o)
 			index++;
-		}
 		cleantablestr(charmap, tablestr);
 		free(alc1);
 	}
@@ -458,17 +472,24 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 }
 
 int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned long long& index, unsigned long long filesize, unsigned long long size) {
-	if (size % sectorsize != 0) {
+	if (size % sectorsize) {
 		unsigned long long pindex = getpindex(index, tablestr);
 		char* alc1 = (char*)calloc(strlen(tablestr) - index, 1);
+		if (!alc1) {
+			return 1;
+		}
 		for (unsigned long long i = 0; i < strlen(tablestr) - index; i++) {
 			alc1[i] = tablestr[index + i];
 		}
 		char* alc2 = (char*)calloc(pindex + 1, 1);
+		if (!alc2) {
+			free(alc1);
+			return 1;
+		}
 		for (unsigned long long i = 0; i < pindex; i++) {
 			alc2[i] = tablestr[index - pindex + i];
 		}
-		if ((filesize - size) % sectorsize == 0) { // Dealloc entire block out of alc2
+		if (!((filesize - size) % sectorsize)) { // Dealloc entire block out of alc2
 			for (unsigned long long i = 0; i < pindex + 1; i++) {
 				if ((alc2[pindex - i] & 0xff) == 44) {
 					alc2[pindex - i] = 0;
@@ -477,7 +498,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 				alc2[pindex - i] = 0;
 			}
 		}
-		else if (filesize % sectorsize == 0) { // Realloc full block as part block
+		else if (!(filesize % sectorsize)) { // Realloc full block as part block
 			unsigned long long alc2len = strlen(alc2);
 			char part[4] = ";0;";
 			for (unsigned long long i = 0; i < 3; i++) {
@@ -503,7 +524,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 		}
 		unsigned long long off = 0;
 		for (; off < strlen(alc2); off++) {
-			if ((alc2[off] & 0xff) == 0) {
+			if (!(alc2[off] & 0xff)) {
 				break;
 			}
 			tablestr[index - pindex + off] = alc2[off];
@@ -520,10 +541,17 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 	for (unsigned long long p = 0; p < size / sectorsize; p++) { // Dealloc entire block out of alc2
 		unsigned long long pindex = getpindex(index, tablestr);
 		char* alc1 = (char*)calloc(strlen(tablestr) - index, 1);
+		if (!alc1) {
+			return 1;
+		}
 		for (unsigned long long i = 0; i < strlen(tablestr) - index; i++) {
 			alc1[i] = tablestr[index + i];
 		}
 		char* alc2 = (char*)calloc(pindex + 1, 1);
+		if (!alc2) {
+			free(alc1);
+			return 1;
+		}
 		for (unsigned long long i = 0; i < pindex; i++) {
 			alc2[i] = tablestr[index - pindex + i];
 		}
@@ -536,7 +564,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 		}
 		unsigned long long off = 0;
 		for (; off < strlen(alc2); off++) {
-			if ((alc2[off] & 0xff) == 0) {
+			if (!(alc2[off] & 0xff)) {
 				break;
 			}
 			tablestr[index - pindex + off] = alc2[off];
@@ -560,12 +588,12 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 		unsigned i = 0;
 		for (; i < 256; i++) {
 			if ((filenames[filenamestrindex + i] & 0xff) == 255 || (filenames[filenamestrindex + i] & 0xff) == 42) {
-				filenamestrindex += i + 1;
+				filenamestrindex += static_cast<unsigned long long>(i) + 1;
 				break;
 			}
 			file[i] = filenames[filenamestrindex + i];
 		}
-		if (wcsincmp(file, filename, filenamesize) == 0 && wcslen(file) == filenamesize) {
+		if (!wcsincmp(file, filename, filenamesize) && wcslen(file) == filenamesize) {
 			break;
 		}
 		if ((filenames[filenamestrindex - 1] & 0xff) == 255) {
@@ -592,6 +620,8 @@ unsigned long long gettablestrindex(PWSTR filename, char* filenames, char* table
 
 int desimp(char* charmap, char*& tablestr) {
 	char* newtablestr = (char*)calloc(strlen(tablestr), 1);
+	if (!newtablestr)
+		return 1;
 	unsigned long long newloc = 0;
 	unsigned long long tablelen = 0;
 	for (unsigned long long i = 0; i < strlen(tablestr); i++) {
@@ -602,6 +632,10 @@ int desimp(char* charmap, char*& tablestr) {
 	char* alc = NULL;
 	unsigned long long clen = 256;
 	char* cblock = (char*)calloc(clen, 1);
+	if (!cblock) {
+		free(newtablestr);
+		return 1;
+	}
 	unsigned long long cloc = 0;
 	std::string str0;
 	std::string str1;
@@ -617,7 +651,7 @@ int desimp(char* charmap, char*& tablestr) {
 			break;
 		case 46: //.
 			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
-			if (range == 0) {
+			if (!range) {
 				for (unsigned long long i = 0; i < str0.length(); i++) {
 					newtablestr[newloc] = str0[i];
 					newloc++;
@@ -634,7 +668,7 @@ int desimp(char* charmap, char*& tablestr) {
 				}
 				newloc--;
 			}
-			if (step != 0) {
+			if (step) {
 				newtablestr[newloc] = 59;
 				newloc++;
 				for (unsigned long long i = 0; i < str1.length(); i++) {
@@ -661,7 +695,7 @@ int desimp(char* charmap, char*& tablestr) {
 			break;
 		case 44: //,
 			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
-			if (range == 0) {
+			if (!range) {
 				for (unsigned long long i = 0; i < str0.length(); i++) {
 					newtablestr[newloc] = str0[i];
 					newloc++;
@@ -687,7 +721,7 @@ int desimp(char* charmap, char*& tablestr) {
 			if (cloc > clen - 2) {
 				clen += 256;
 				alc = (char*)realloc(cblock, clen);
-				if (alc == NULL) {
+				if (!alc) {
 					free(cblock);
 					return 1;
 				}
@@ -700,12 +734,12 @@ int desimp(char* charmap, char*& tablestr) {
 		}
 	}
 	free(cblock);
-	alc = (char*)realloc(tablestr, strlen(newtablestr) + 1);
-	if (alc == NULL) {
+	char* alc1 = (char*)realloc(tablestr, strlen(newtablestr) + 1);
+	if (!alc1) {
 		free(newtablestr);
 		return 1;
 	}
-	tablestr = alc;
+	tablestr = alc1;
 	memcpy(tablestr, newtablestr, strlen(newtablestr));
 	free(newtablestr);
 	cleantablestr(charmap, tablestr);
@@ -764,7 +798,7 @@ int simp(char* charmap, char*& tablestr) {
 				newtablestr[newloc] = 46;
 				newloc++;
 			}
-			if (step != 0) {
+			if (step) {
 				newloc--;
 				newtablestr[newloc] = 59;
 				newloc++;
@@ -816,7 +850,7 @@ int simp(char* charmap, char*& tablestr) {
 			if (cloc > clen - 2) {
 				clen += 256;
 				alc = (char*)realloc(cblock, clen);
-				if (alc == NULL) {
+				if (!alc) {
 					free(cblock);
 					return 1;
 				}
@@ -829,7 +863,11 @@ int simp(char* charmap, char*& tablestr) {
 		}
 	}
 	free(cblock);
-	tablestr = (char*)realloc(tablestr, strlen(newtablestr));
+	char* alc1 = (char*)realloc(tablestr, strlen(newtablestr));
+	if (!alc1) {
+		return 1;
+	}
+	tablestr = alc1;
 	memcpy(tablestr, newtablestr, strlen(newtablestr));
 	free(newtablestr);
 	cleantablestr(charmap, tablestr);
@@ -883,7 +921,7 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 
 int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned long mode, unsigned long winattrs, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char* charmap, char*& tablestr) {
 	char* alc = (char*)realloc(fileinfo, (filenamecount + 1) * 35);
-	if (alc == NULL) {
+	if (!alc) {
 		return 1;
 	}
 	fileinfo = alc;
@@ -906,6 +944,8 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 	}
 	tablestr[tablelen] = 46;
 	char* gum = (char*)calloc((filenamecount + 1) * 11, 1);
+	if (!gum)
+		return 1;
 	memcpy(gum, fileinfo + filenamecount * 24, filenamecount * 11);
 	time_t ltime;
 	time(&ltime);
@@ -1000,81 +1040,81 @@ int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenam
 }
 
 void readwrite(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksize, unsigned long long start, unsigned step, unsigned range, unsigned long long len, std::string str0, std::string str1, std::string str2, std::string rstr, unsigned long long& rblock, unsigned long long& block, char*& buf, unsigned rw) {
-	LARGE_INTEGER loc;
+	LARGE_INTEGER loc{};
 	DWORD wr;
-	if (range != 0) {
+	if (range) {
 		for (unsigned long long p = std::strtoull(rstr.c_str(), 0, 10); p < std::strtoull(str0.c_str(), 0, 10) + 1; p++) {
 			if (start / sectorsize <= block && block < (start + len + sectorsize - 1) / sectorsize) {
 				if (start / sectorsize == block) { // Start block
-					if (step != 0) {
+					if (step) {
 						loc.QuadPart = disksize - (p * sectorsize + sectorsize) + start % sectorsize + std::strtoul(str1.c_str(), 0, 10);
 						SetFilePointerEx(hDisk, loc, NULL, 0);
-						if (len - start % sectorsize < std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10)) {
-							if (rw == 0) {
-								ReadFile(hDisk, buf, len, &wr, NULL);
+						if (len - start % sectorsize < std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10)) {
+							if (!rw) {
+								if (!ReadFile(hDisk, buf, len, &wr, NULL)) return;
 							}
 							else {
-								WriteFile(hDisk, buf, len, &wr, NULL);
+								if (!WriteFile(hDisk, buf, len, &wr, NULL)) return;
 							}
 							rblock += len;
 						}
 						else {
-							if (rw == 0) {
-								ReadFile(hDisk, buf, std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL);
+							if (!rw) {
+								if (!ReadFile(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL)) return;
 							}
 							else {
-								WriteFile(hDisk, buf, std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL);
+								if (!WriteFile(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL)) return;
 							}
-							rblock += std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize;
+							rblock += std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize;
 						}
 					}
 					else {
 						loc.QuadPart = disksize - (p * sectorsize + sectorsize) + start % sectorsize;
 						SetFilePointerEx(hDisk, loc, NULL, 0);
 						if (sectorsize - start % sectorsize < sectorsize) {
-							if (rw == 0) {
-								ReadFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL);
+							if (!rw) {
+								if (!ReadFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL)) return;
 							}
 							else {
-								WriteFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL);
+								if (!WriteFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL)) return;
 							}
 							rblock += sectorsize - start % sectorsize;
 						}
 						else {
-							if (rw == 0) {
-								ReadFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL);
+							if (!rw) {
+								if (!ReadFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL)) return;
 							}
 							else {
-								WriteFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL);
+								if (!WriteFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL)) return;
 							}
 							rblock += sectorsize - start % sectorsize;
 						}
 					}
 				}
 				else if (len - rblock <= sectorsize) { // End block
-					if (step != 0) {
+					if (step) {
 						loc.QuadPart = disksize - (p * sectorsize + sectorsize) + std::strtoul(str1.c_str(), 0, 10);
 					}
 					else {
 						loc.QuadPart = disksize - (p * sectorsize + sectorsize);
 					}
 					SetFilePointerEx(hDisk, loc, NULL, 0);
-					if (rw == 0) {
-						ReadFile(hDisk, buf + rblock, len - rblock, &wr, NULL);
+					if (!rw) {
+						if (!ReadFile(hDisk, buf + rblock, len - rblock, &wr, NULL)) return;
 					}
 					else {
-						WriteFile(hDisk, buf + rblock, len - rblock, &wr, NULL);
+						if (!WriteFile(hDisk, buf + rblock, len - rblock, &wr, NULL)) return;
 					}
 					rblock = len;
 				}
 				else { // In between blocks
 					loc.QuadPart = disksize - (p * sectorsize + sectorsize);
 					SetFilePointerEx(hDisk, loc, NULL, 0);
-					if (rw == 0) {
-						ReadFile(hDisk, buf + rblock, sectorsize, &wr, NULL);
+					if (!rw) {
+						if (!ReadFile(hDisk, buf + rblock, sectorsize, &wr, NULL)) return;
 					}
 					else {
-						WriteFile(hDisk, buf + rblock, sectorsize, &wr, NULL);
+						if (!WriteFile(hDisk, buf + rblock, sectorsize, &wr, NULL)) return;
 					}
 					rblock += sectorsize;
 				}
@@ -1086,75 +1126,75 @@ void readwrite(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksi
 	}
 	if (start / sectorsize <= block && block < (start + len + sectorsize - 1) / sectorsize) {
 		if (start / sectorsize == block) { // Start block
-			if (step != 0) {
+			if (step) {
 				loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize) + start % sectorsize + std::strtoul(str1.c_str(), 0, 10);
 				SetFilePointerEx(hDisk, loc, NULL, 0);
-				if (len - start % sectorsize < std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10)) {
-					if (rw == 0) {
-						ReadFile(hDisk, buf, len, &wr, NULL);
+				if (len - start % sectorsize < std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10)) {
+					if (!rw) {
+						if (!ReadFile(hDisk, buf, len, &wr, NULL)) return;
 					}
 					else {
-						WriteFile(hDisk, buf, len, &wr, NULL);
+						if (!WriteFile(hDisk, buf, len, &wr, NULL)) return;
 					}
 					rblock += len;
 				}
 				else {
-					if (rw == 0) {
-						ReadFile(hDisk, buf, std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL);
+					if (!rw) {
+						if (!ReadFile(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL)) return;
 					}
 					else {
-						WriteFile(hDisk, buf, std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL);
+						if (!WriteFile(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL)) return;
 					}
-					rblock += std::strtoul(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize;
+					rblock += std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize;
 				}
 			}
 			else {
 				loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize) + start % sectorsize;
 				SetFilePointerEx(hDisk, loc, NULL, 0);
 				if (sectorsize - start % sectorsize < sectorsize) {
-					if (rw == 0) {
-						ReadFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL);
+					if (!rw) {
+						if (!ReadFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL)) return;
 					}
 					else {
-						WriteFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL);
+						if (!WriteFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL)) return;
 					}
 					rblock += sectorsize - start % sectorsize;
 				}
 				else {
-					if (rw == 0) {
-						ReadFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL);
+					if (!rw) {
+						if (!ReadFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL)) return;
 					}
 					else {
-						WriteFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL);
+						if (!WriteFile(hDisk, buf, sectorsize - start % sectorsize, &wr, NULL)) return;
 					}
 					rblock += sectorsize - start % sectorsize;
 				}
 			}
 		}
 		else if (len - rblock <= sectorsize) { // End block
-			if (step != 0) {
+			if (step) {
 				loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize) + std::strtoul(str1.c_str(), 0, 10);
 			}
 			else {
 				loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize);
 			}
 			SetFilePointerEx(hDisk, loc, NULL, 0);
-			if (rw == 0) {
-				ReadFile(hDisk, buf + rblock, len - rblock, &wr, NULL);
+			if (!rw) {
+				if (!ReadFile(hDisk, buf + rblock, len - rblock, &wr, NULL)) return;
 			}
 			else {
-				WriteFile(hDisk, buf + rblock, len - rblock, &wr, NULL);
+				if (!WriteFile(hDisk, buf + rblock, len - rblock, &wr, NULL)) return;
 			}
 			rblock = len;
 		}
 		else { // In between blocks
 			loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize);
 			SetFilePointerEx(hDisk, loc, NULL, 0);
-			if (rw == 0) {
-				ReadFile(hDisk, buf + rblock, sectorsize, &wr, NULL);
+			if (!rw) {
+				if (!ReadFile(hDisk, buf + rblock, sectorsize, &wr, NULL)) return;
 			}
 			else {
-				WriteFile(hDisk, buf + rblock, sectorsize, &wr, NULL);
+				if (!WriteFile(hDisk, buf + rblock, sectorsize, &wr, NULL)) return;
 			}
 			rblock += sectorsize;
 		}
@@ -1169,7 +1209,7 @@ void chtime(char*& fileinfo, unsigned long long filenameindex, double& time, uns
 	else if (ch == 4 || ch == 5) {
 		o = 16;
 	}
-	if (ch % 2 == 0) {
+	if (!(ch % 2)) {
 		char tim[8] = { 0 };
 		memcpy(tim, fileinfo + filenameindex * 24 + o, 8);
 		char ti[8] = { 0 };
@@ -1190,7 +1230,7 @@ void chtime(char*& fileinfo, unsigned long long filenameindex, double& time, uns
 }
 
 void chgid(char*& fileinfo, unsigned long long filenamecount, unsigned long long filenameindex, unsigned long& gid, unsigned ch) { // Next three bytes of fileinfo after times
-	if (ch == 0) {
+	if (!ch) {
 		gid = (fileinfo[filenamecount * 24 + filenameindex * 11] & 0xff) << 16 | (fileinfo[filenamecount * 24 + filenameindex * 11 + 1] & 0xff) << 8 | fileinfo[filenamecount * 24 + filenameindex * 11 + 2] & 0xff;
 	}
 	else {
@@ -1201,7 +1241,7 @@ void chgid(char*& fileinfo, unsigned long long filenamecount, unsigned long long
 }
 
 void chuid(char*& fileinfo, unsigned long long filenamecount, unsigned long long filenameindex, unsigned long& uid, unsigned ch) { // Next two bytes of fileinfo
-	if (ch == 0) {
+	if (!ch) {
 		uid = (fileinfo[filenamecount * 24 + filenameindex * 11 + 3] & 0xff) << 8 | fileinfo[filenamecount * 24 + filenameindex * 11 + 4] & 0xff;
 	}
 	else {
@@ -1211,7 +1251,7 @@ void chuid(char*& fileinfo, unsigned long long filenamecount, unsigned long long
 }
 
 void chmode(char*& fileinfo, unsigned long long filenamecount, unsigned long long filenameindex, unsigned long& mode, unsigned ch) { // Next two bytes of fileinfo
-	if (ch == 0) {
+	if (!ch) {
 		mode = (fileinfo[filenamecount * 24 + filenameindex * 11 + 5] & 0xff) << 8 | fileinfo[filenamecount * 24 + filenameindex * 11 + 6] & 0xff;
 	}
 	else {
@@ -1221,7 +1261,7 @@ void chmode(char*& fileinfo, unsigned long long filenamecount, unsigned long lon
 }
 
 void chwinattrs(char*& fileinfo, unsigned long long filenamecount, unsigned long long filenameindex, unsigned long& winattrs, unsigned ch) { // Last four bytes of fileinfo
-	if (ch == 0) {
+	if (!ch) {
 		winattrs = (fileinfo[filenamecount * 24 + filenameindex * 11 + 7] & 0xff) << 24 | (fileinfo[filenamecount * 24 + filenameindex * 11 + 8] & 0xff) << 16 | (fileinfo[filenamecount * 24 + filenameindex * 11 + 9] & 0xff) << 8 | fileinfo[filenamecount * 24 + filenameindex * 11 + 10] & 0xff;
 	}
 	else {
@@ -1244,6 +1284,8 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 	char* alc = NULL;
 	unsigned long long clen = 256;
 	char* cblock = (char*)calloc(clen, 1);
+	if (!cblock)
+		return 1;
 	unsigned long long cloc = 0;
 	std::string str0;
 	std::string str1;
@@ -1280,7 +1322,7 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 			if (cloc > clen - 2) {
 				clen += 256;
 				alc = (char*)realloc(cblock, clen);
-				if (alc == NULL) {
+				if (!alc) {
 					free(cblock);
 					return 1;
 				}
@@ -1303,7 +1345,7 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, unsigned long tablesize, unsigned long long disksize, unsigned long long size, unsigned long long newsize, unsigned long long filenameindex, char* charmap, char*& tablestr, char*& fileinfo, unsigned long long& usedblocks) {
 	desimp(charmap, tablestr);
 	if (size < newsize) {
-		if (size % sectorsize != 0) {
+		if (size % sectorsize) {
 			char* temp = (char*)calloc(size % sectorsize, 1);
 			readwritefile(hDisk, sectorsize, index, size - size % sectorsize, size % sectorsize, disksize, tablestr, temp, fileinfo, filenameindex, 0);
 			dealloc(sectorsize, charmap, tablestr, index, size, size % sectorsize);
@@ -1315,7 +1357,7 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 		alloc(sectorsize, disksize, tablesize, charmap, tablestr, index, newsize - size, usedblocks);
 	}
 	if (size > newsize) {
-		if (size % sectorsize != 0 && size - newsize > size % sectorsize) {
+		if (size % sectorsize && size - newsize > size % sectorsize) {
 			dealloc(sectorsize, charmap, tablestr, index, size, size % sectorsize);
 			size -= size % sectorsize;
 		}
@@ -1384,7 +1426,10 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	SetFilePointerEx(hDisk, seek, &seek, 0);
 	char bytes[512] = { 0 };
 	DWORD r;
-	ReadFile(hDisk, bytes, 512, &r, NULL);
+	if (!ReadFile(hDisk, bytes, 512, &r, NULL)) {
+		std::cout << "Reading Error: " << GetLastError() << std::endl;
+		return 1;
+	}
 	if (r != 512) {
 		std::cout << "Reading Error: " << GetLastError() << std::endl;
 		return 1;
@@ -1393,9 +1438,12 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	//std::cout << "Read disk with sectorsize: " << sectorsize << std::endl;
 
 	unsigned long tablesize = 1 + bytes[4] + (bytes[3] << 8) + (bytes[2] << 16) + (bytes[1] << 24);
-	unsigned long long extratablesize = (tablesize * sectorsize) - 512;
+	unsigned long long extratablesize = (static_cast<unsigned long long>(tablesize) * sectorsize) - 512;
 	char* ttable = (char*)calloc(extratablesize, 1);
-	ReadFile(hDisk, ttable, extratablesize, &r, NULL);
+	if (!ReadFile(hDisk, ttable, extratablesize, &r, NULL)) {
+		std::cout << "Reading table Error: " << GetLastError() << std::endl;
+		return 1;
+	}
 	if (r != extratablesize) {
 		std::cout << "Reading table Error: " << GetLastError() << std::endl;
 		return 1;

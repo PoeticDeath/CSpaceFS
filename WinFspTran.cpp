@@ -64,6 +64,8 @@ static void ATTRtoattr(unsigned long& ATTR)
 static void ReplaceBSWFS(PWSTR& FileName)
 {
 	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName), sizeof(wchar_t));
+	if (!NewFileName)
+		return;
 
 	for(int i = 0; i < 256; i++)
 	{
@@ -81,6 +83,8 @@ static void ReplaceBSWFS(PWSTR& FileName)
 static void RemoveFirst(PWSTR& FileName)
 {
 	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName), sizeof(wchar_t));
+	if (!NewFileName)
+		return;
 
 	int i = 0;
 	for(; i < 256; i++)
@@ -90,14 +94,16 @@ static void RemoveFirst(PWSTR& FileName)
 			break;
 	}
 	
-	memcpy(FileName, NewFileName, (i + 1) * sizeof(wchar_t));
+	memcpy(FileName, NewFileName, (static_cast<unsigned long long>(i) + 1) * sizeof(wchar_t));
 	free(NewFileName);
 }
 
 static void GetParentName(PWSTR& FileName, PWSTR& Suffix)
 {
-	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName) + 2, sizeof(wchar_t));
 	unsigned Loc = 0;
+	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName) + 2, sizeof(wchar_t));
+	if (!NewFileName)
+		return;
 
 	for (unsigned i = 0; i < 256; i++)
 	{
@@ -116,6 +122,8 @@ static void GetParentName(PWSTR& FileName, PWSTR& Suffix)
 
 	if (Suffix) {
 		wchar_t* NewSuffix = (wchar_t*)calloc(wcslen(FileName), sizeof(wchar_t));
+		if (!NewSuffix)
+			return;
 
 		unsigned i = 0;
 		for (; i < 256; i++)
@@ -125,14 +133,14 @@ static void GetParentName(PWSTR& FileName, PWSTR& Suffix)
 			NewSuffix[i] = FileName[Loc + i + 1];
 		}
 
-		memcpy(Suffix, NewSuffix, (i + 1) * sizeof(wchar_t));
+		memcpy(Suffix, NewSuffix, (static_cast<unsigned long long>(i) + 1) * sizeof(wchar_t));
 		free(NewSuffix);
 	}
 
-	if (Loc != 0)
+	if (Loc)
 		NewFileName[Loc] = '\0';
 	NewFileName[Loc + 1] = '\0';
-	memcpy(FileName, NewFileName, (Loc + 2) * sizeof(wchar_t));
+	memcpy(FileName, NewFileName, (static_cast<unsigned long long>(Loc) + 2) * sizeof(wchar_t));
 	free(NewFileName);
 }
 
@@ -205,6 +213,8 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM* FileSystem, PWSTR Label, FSP_FS
 	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
 	trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, wcslen(Label), FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks);
 	char* buf = (char*)calloc(32, 1);
+	if (!buf)
+		return STATUS_INSUFFICIENT_RESOURCES;
 	for (int i = 0; i < wcslen(Label); i++)
 		buf[i] = Label[i];
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, wcslen(Label), SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 1);
@@ -228,7 +238,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 
 	ReplaceBSWFS(FileName);
 
-	if (PFileAttributes != 0)
+	if (PFileAttributes)
 	{
 		getfilenameindex(FileName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 0);
@@ -236,9 +246,11 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 		*PFileAttributes = winattrs;
 	}
 
-	if (PSecurityDescriptorSize != 0)
+	if (PSecurityDescriptorSize)
 	{
 		PWSTR SecurityName = (PWSTR)calloc(256, sizeof(wchar_t));
+		if (!SecurityName)
+			return STATUS_INSUFFICIENT_RESOURCES;
 		memcpy(SecurityName, FileName, wcslen(FileName) * sizeof(wchar_t));
 		RemoveFirst(SecurityName);
 		PSECURITY_DESCRIPTOR S = calloc(*PSecurityDescriptorSize, 1);
@@ -271,7 +283,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateO
 
 	ReplaceBSWFS(FileName);
 	FileContext = (SPFS_FILE_CONTEXT*)calloc(sizeof * FileContext, 1);
-	if (FileContext == 0)
+	if (!FileContext)
 		return STATUS_INSUFFICIENT_RESOURCES;
 	memset(FileContext, 0, sizeof * FileContext);
 
@@ -316,7 +328,7 @@ static NTSTATUS Read(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buffe
 	}
 	Length = min(Length, FileSize - Offset);
 	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
-	char* Buf = (char*)calloc(Length + 1, 1);
+	char* Buf = (char*)calloc(static_cast<size_t>(Length) + 1, 1);
 	if (!Buf)
 		return STATUS_INSUFFICIENT_RESOURCES;
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, FilenameIndex, 0);
@@ -348,7 +360,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buff
 		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 	}
 
-	char* Buf = (char*)calloc(Length + 1, 1);
+	char* Buf = (char*)calloc(static_cast<size_t>(Length) + 1, 1);
 	if (!Buf)
 		return STATUS_INSUFFICIENT_RESOURCES;
 	memcpy(Buf, Buffer, Length);
@@ -420,11 +432,15 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	renamefile(FileName, NewFileName, FilenameSTRIndex, SpFs->Filenames);
 
 	PWSTR SecurityName = (PWSTR)calloc(256, sizeof(wchar_t));
+	if (!SecurityName)
+		return STATUS_INSUFFICIENT_RESOURCES;
 	memcpy(SecurityName, FileName, wcslen(FileName) * sizeof(wchar_t));
 	RemoveFirst(SecurityName);
 	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 
 	PWSTR NewSecurityName = (PWSTR)calloc(256, sizeof(wchar_t));
+	if (!NewSecurityName)
+		return STATUS_INSUFFICIENT_RESOURCES;
 	memcpy(NewSecurityName, NewFileName, wcslen(NewFileName) * sizeof(wchar_t));
 	RemoveFirst(NewSecurityName);
 	renamefile(SecurityName, NewSecurityName, FilenameSTRIndex, SpFs->Filenames);
@@ -441,6 +457,8 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PSEC
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	PWSTR SecurityName = (PWSTR)calloc(256, sizeof(wchar_t));
+	if (!SecurityName)
+		return STATUS_INSUFFICIENT_RESOURCES;
 	memcpy(SecurityName, FileCtx->Path, wcslen(FileCtx->Path) * sizeof(wchar_t));
 
 	unsigned long long FilenameIndex = 0;
@@ -472,6 +490,8 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 static BOOLEAN AddDirInfo(SPFS* SpFs, PWSTR Name, PWSTR FileName, PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
 {
 	FSP_FSCTL_DIR_INFO* DirInfo = (FSP_FSCTL_DIR_INFO*)calloc(sizeof(FSP_FSCTL_DIR_INFO) + (wcslen(FileName) + 1) * sizeof(wchar_t), 1);
+	if (!DirInfo)
+		return FALSE;
 
 	memset(DirInfo->Padding, 0, sizeof DirInfo->Padding);
 	DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + (wcslen(FileName) + 1) * sizeof(wchar_t));
@@ -487,9 +507,11 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 {
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	PWSTR Suffix = 0;
 	PWSTR DirectoryName = FileCtx->Path;
 	PWSTR ParentDirectoryName = (PWSTR)calloc(256, sizeof(wchar_t));
-	PWSTR Suffix = 0;
+	if (!ParentDirectoryName)
+		return STATUS_INSUFFICIENT_RESOURCES;
 
 	memcpy(ParentDirectoryName, DirectoryName, wcslen(DirectoryName) * sizeof(wchar_t));
 	GetParentName(ParentDirectoryName, Suffix);
@@ -500,7 +522,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 			return STATUS_SUCCESS;
 		}
 
-		if (Marker == 0 || (Marker[0] == L'.' && Marker[1] == L'\0')) {
+		if (!Marker || (Marker[0] == L'.' && Marker[1] == L'\0')) {
 			if (!AddDirInfo(SpFs, ParentDirectoryName, (PWSTR)L"..", Buffer, BufferLength, PBytesTransferred)) {
 				free(ParentDirectoryName);
 				return STATUS_SUCCESS;
@@ -513,8 +535,19 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 
 	unsigned long long Offset = 0;
 	PWSTR FileName = (PWSTR)calloc(256, sizeof(wchar_t));
+	if (!FileName)
+		return STATUS_INSUFFICIENT_RESOURCES;
 	PWSTR FileNameParent = (PWSTR)calloc(256, sizeof(wchar_t));
+	if (!FileNameParent) {
+		free(FileName);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
 	PWSTR FileNameSuffix = (PWSTR)calloc(256, sizeof(wchar_t));
+	if (!FileNameSuffix) {
+		free(FileName);
+		free(FileNameParent);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
 	for (unsigned long long i = 0; i < SpFs->FilenameCount; i++) {
 		unsigned long long j = 0;
 		for (; j < 256; j++) {
@@ -528,7 +561,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 
 		memcpy(FileNameParent, FileName, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
-		if (wcscmp(FileNameParent, DirectoryName) == 0 && wcslen(FileNameParent) == wcslen(DirectoryName))
+		if (!wcscmp(FileNameParent, DirectoryName) && wcslen(FileNameParent) == wcslen(DirectoryName))
 			if (wcslen(FileNameSuffix) > 0)
 				if (!AddDirInfo(SpFs, FileName, FileNameSuffix, Buffer, BufferLength, PBytesTransferred))
 					return STATUS_SUCCESS;
@@ -624,13 +657,13 @@ static FSP_FILE_SYSTEM_INTERFACE SpFsInterface =
 static
 VOID SpFsDelete(SPFS* SpFs)
 {
-	if (SpFs->FileSystem != 0)
+	if (SpFs->FileSystem)
 		FspFileSystemDelete(SpFs->FileSystem);
 
-	if (SpFs->Path != 0)
+	if (SpFs->Path)
 		free(SpFs->Path);
 
-	if (SpFs->MountPoint != 0)
+	if (SpFs->MountPoint)
 		free(SpFs->MountPoint);
 
 	free(SpFs);
@@ -656,7 +689,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	if (Handle == INVALID_HANDLE_VALUE)
 		return FspNtStatusFromWin32(GetLastError());
 
-	Length = GetFinalPathNameByHandleW(Handle, FullPath, FULLPATH_SIZE - 1, 0);
+	Length = GetFinalPathNameByHandleW(Handle, FullPath, MAX_PATH, 0);
 	if (0 == Length)
 	{
 		LastError = GetLastError();
@@ -689,7 +722,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	}
 	//std::cout << "Disk opened successfully" << std::endl;
 
-	if (SectorSize != 0) {
+	if (SectorSize) {
 		sectorsize = SectorSize;
 		unsigned i = 0;
 		while (sectorsize != 1) {
@@ -721,7 +754,10 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	SetFilePointerEx(hDisk, seek, &seek, 0);
 	char bytes[512] = { 0 };
 	DWORD r;
-	ReadFile(hDisk, bytes, 512, &r, NULL);
+	if (!ReadFile(hDisk, bytes, 512, &r, NULL)) {
+		std::cout << "Reading Error: " << GetLastError() << std::endl;
+		return 1;
+	}
 	if (r != 512) {
 		std::cout << "Reading Error: " << GetLastError() << std::endl;
 		return 1;
@@ -730,9 +766,12 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	//std::cout << "Read disk with sectorsize: " << sectorsize << std::endl;
 
 	unsigned long tablesize = 1 + bytes[4] + (bytes[3] << 8) + (bytes[2] << 16) + (bytes[1] << 24);
-	unsigned long long extratablesize = (tablesize * sectorsize) - 512;
+	unsigned long long extratablesize = (static_cast<unsigned long long>(tablesize) * sectorsize) - 512;
 	char* ttable = (char*)calloc(extratablesize, 1);
-	ReadFile(hDisk, ttable, extratablesize, &r, NULL);
+	if (!ReadFile(hDisk, ttable, extratablesize, &r, NULL)) {
+		std::cout << "Reading table Error: " << GetLastError() << std::endl;
+		return 1;
+	}
 	if (r != extratablesize) {
 		std::cout << "Reading table Error: " << GetLastError() << std::endl;
 		return 1;
@@ -812,7 +851,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 
 	unsigned o = 9;
 	SpFs = (SPFS*)malloc(sizeof * SpFs);
-	if (SpFs == 0)
+	if (!SpFs)
 	{
 		Result = STATUS_INSUFFICIENT_RESOURCES;
 		goto exit;
@@ -846,9 +885,9 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 
 	// Calculate the sector size larger than UINT16 ^
 
-	Length = (Length + 1) * sizeof(WCHAR);
+	Length = (static_cast<unsigned long long>(Length) + 1) * sizeof(WCHAR);
 	SpFs->Path = (PWSTR)malloc(Length);
-	if (SpFs->Path == 0)
+	if (!SpFs->Path)
 	{
 		Result = STATUS_INSUFFICIENT_RESOURCES;
 		goto exit;
@@ -895,7 +934,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 exit:
 	if (NT_SUCCESS(Result))
 		*PSpFs = SpFs;
-	else if (SpFs != 0)
+	else if (SpFs)
 		SpFsDelete(SpFs);
 	return Result;
 }
@@ -906,7 +945,7 @@ static NTSTATUS EnableBackupRestorePrivileges(VOID)
 	{
 		TOKEN_PRIVILEGES P;
 		UINT8 B[sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES)];
-	} Privileges;
+	} Privileges{};
 	HANDLE Token;
 
 	Privileges.P.PrivilegeCount = 2;
@@ -1006,7 +1045,7 @@ NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 	Result = STATUS_SUCCESS;
 
 exit:
-	if (!NT_SUCCESS(Result) && SpFs != 0)
+	if (!NT_SUCCESS(Result) && SpFs)
 		SpFsDelete(SpFs);
 	return Result;
 
