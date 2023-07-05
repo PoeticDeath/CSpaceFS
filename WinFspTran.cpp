@@ -545,9 +545,8 @@ static NTSTATUS Flush(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, FSP_FSCTL_
 {
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
-	GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
 
-	return STATUS_SUCCESS;
+	return GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
 }
 
 static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, FSP_FSCTL_FILE_INFO* FileInfo)
@@ -560,7 +559,40 @@ static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, FSP_
 
 static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32 FileAttributes, UINT64 CreationTime, UINT64 LastAccessTime, UINT64 LastWriteTime, UINT64 ChangeTime, FSP_FSCTL_FILE_INFO* FileInfo)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	unsigned long winattrs = FileAttributes;
+
+	unsigned long long FilenameIndex = 0;
+	unsigned long long FilenameSTRIndex = 0;
+	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+
+	if (winattrs != INVALID_FILE_ATTRIBUTES)
+	{
+		ATTRtoattr(winattrs);
+		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
+	}
+
+	if (LastWriteTime || ChangeTime)
+	{
+		LastWriteTime = max(LastWriteTime, ChangeTime);
+		double WTime = (LastWriteTime - static_cast<double>(116444736000000000)) / 10000000;
+		chtime(SpFs->FileInfo, FilenameIndex, WTime, 1);
+	}
+
+	if (LastAccessTime)
+	{
+		double ATime = (LastAccessTime - static_cast<double>(116444736000000000)) / 10000000;
+		chtime(SpFs->FileInfo, FilenameIndex, ATime, 3);
+	}
+
+	if (CreationTime)
+	{
+		double CTime = (CreationTime - static_cast<double>(116444736000000000)) / 10000000;
+		chtime(SpFs->FileInfo, FilenameIndex, CTime, 5);
+	}
+
+	return GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
 }
 
 static NTSTATUS SetFileSize(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT64 NewSize, BOOLEAN SetAllocationSize, FSP_FSCTL_FILE_INFO* FileInfo)
