@@ -63,20 +63,26 @@ static void ATTRtoattr(unsigned long& ATTR)
 
 static void ReplaceBSWFS(PWSTR& FileName)
 {
-	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName), sizeof(wchar_t));
+	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
 	if (!NewFileName)
 	{
 		return;
 	}
 
-	for (int i = 0; i < 256; i++)
+	for (int i = 0; i < wcslen(FileName); i++)
 	{
 		if (FileName[i] == '\\')
+		{
 			NewFileName[i] = '/';
+		}
 		else
+		{
 			NewFileName[i] = FileName[i];
+		}
 		if (FileName[i] == '\0')
+		{
 			break;
+		}
 	}
 
 	FileName = NewFileName;
@@ -84,14 +90,14 @@ static void ReplaceBSWFS(PWSTR& FileName)
 
 static void RemoveFirst(PWSTR& FileName)
 {
-	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName), sizeof(wchar_t));
+	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
 	if (!NewFileName)
 	{
 		return;
 	}
 
 	int i = 0;
-	for (; i < 256; i++)
+	for (; i < wcslen(FileName); i++)
 	{
 		NewFileName[i] = FileName[i + 1];
 		if (FileName[i + 1] == '\0')
@@ -113,10 +119,12 @@ static void GetParentName(PWSTR& FileName, PWSTR& Suffix)
 		return;
 	}
 
-	for (unsigned i = 0; i < 256; i++)
+	for (unsigned i = 0; i < wcslen(FileName); i++)
 	{
 		if (FileName[i] == '\0')
+		{
 			break;
+		}
 		switch (FileName[i])
 		{
 		case '/':
@@ -131,12 +139,14 @@ static void GetParentName(PWSTR& FileName, PWSTR& Suffix)
 
 	if (Suffix)
 	{
-		wchar_t* NewSuffix = (wchar_t*)calloc(wcslen(FileName), sizeof(wchar_t));
+		wchar_t* NewSuffix = (wchar_t*)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
 		if (!NewSuffix)
+		{
 			return;
+		}
 
 		unsigned i = 0;
-		for (; i < 256; i++)
+		for (; i < wcslen(FileName); i++)
 		{
 			if (FileName[Loc + i + 1] == '\0')
 			{
@@ -268,7 +278,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 
 	if (PSecurityDescriptorSize)
 	{
-		PWSTR SecurityName = (PWSTR)calloc(256, sizeof(wchar_t));
+		PWSTR SecurityName = (PWSTR)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
 		if (!SecurityName)
 		{
 			return STATUS_INSUFFICIENT_RESOURCES;
@@ -293,8 +303,134 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 
 static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess, UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize, PVOID* PFileContext, FSP_FSCTL_FILE_INFO* FileInfo)
 {
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	ULONG CreateFlags;
+	SPFS_FILE_CONTEXT* FileContext;
+
 	ReplaceBSWFS(FileName);
-	return STATUS_INVALID_DEVICE_REQUEST;
+	FileContext = (SPFS_FILE_CONTEXT*)calloc(sizeof(*FileContext), 1);
+	if (!FileContext)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	memset(FileContext, 0, sizeof(*FileContext));
+
+	CreateFlags = FILE_FLAG_BACKUP_SEMANTICS;
+	if (CreateOptions & FILE_DELETE_ON_CLOSE)
+	{
+		CreateFlags |= FILE_FLAG_DELETE_ON_CLOSE;
+	}
+
+	FileContext->Path = FileName;
+	*PFileContext = FileContext;
+
+	PWSTR ParentDirectory = (PWSTR)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
+	if (!ParentDirectory)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	PWSTR Suffix = 0;
+	unsigned long gid = 0;
+	unsigned long uid = 0;
+	unsigned long winattrs = FileAttributes;
+	unsigned long long ParentDirectoryIndex = 0;
+	unsigned long long ParentDirectorySTRIndex = 0;
+
+	attrtoATTR(winattrs);
+
+	memcpy(ParentDirectory, FileName, wcslen(FileName) * sizeof(wchar_t));
+	GetParentName(ParentDirectory, Suffix);
+	unsigned long long ParentIndex = gettablestrindex(ParentDirectory, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	getfilenameindex(ParentDirectory, SpFs->Filenames, SpFs->FilenameCount, ParentDirectoryIndex, ParentDirectorySTRIndex);
+	chgid(SpFs->FileInfo, SpFs->FilenameCount, ParentDirectoryIndex, gid, 0);
+	chuid(SpFs->FileInfo, SpFs->FilenameCount, ParentDirectoryIndex, uid, 0);
+	PWSTR SecurityParentName = (PWSTR)calloc(wcslen(ParentDirectory) + 1, sizeof(wchar_t));
+	if (!SecurityParentName)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	memcpy(SecurityParentName, ParentDirectory, wcslen(ParentDirectory) * sizeof(wchar_t));
+	RemoveFirst(SecurityParentName);
+	free(ParentDirectory);
+
+	createfile(FileName, gid, uid, 448 + (FileAttributes & FILE_ATTRIBUTE_DIRECTORY) * 16429, winattrs, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
+
+	PWSTR SecurityName = (PWSTR)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
+	if (!SecurityName)
+	{
+		free(SecurityParentName);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	memcpy(SecurityName, FileName, wcslen(FileName) * sizeof(wchar_t));
+	RemoveFirst(SecurityName);
+
+	PULONG BufLen = (PULONG)calloc(sizeof(PULONG), 1);
+	if (!BufLen)
+	{
+		free(SecurityParentName);
+		free(SecurityName);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	*BufLen = 65536;
+	LPSTR* Buf = (LPSTR*)calloc(static_cast<size_t>(*BufLen) + 1, 1);
+	if (!Buf)
+	{
+		free(SecurityParentName);
+		free(SecurityName);
+		free(BufLen);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	unsigned long long SecurityIndex = gettablestrindex(SecurityName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	unsigned long long SecurityFileIndex = 0;
+	unsigned long long SecurityFileSTRIndex = 0;
+
+	createfile(SecurityName, gid, uid, 448, 2048, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
+	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, SecurityFileIndex, SecurityFileSTRIndex);
+	ConvertSecurityDescriptorToStringSecurityDescriptorA(SecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, BufLen);
+	if (*BufLen > 65536)
+	{
+		free(Buf);
+		Buf = (LPSTR*)calloc(static_cast<size_t>(*BufLen) + 1, 1);
+		if (!Buf)
+		{
+			free(SecurityParentName);
+			free(SecurityName);
+			free(BufLen);
+			return STATUS_INSUFFICIENT_RESOURCES;
+		}
+		ConvertSecurityDescriptorToStringSecurityDescriptorA(SecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, BufLen);
+	}
+	if (std::string(*Buf).find("D:P") == std::string::npos)
+	{
+		unsigned long long FileSize = 0;
+		unsigned long long SecurityParentIndex = gettablestrindex(SecurityParentName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+		unsigned long long SecurityParentDirectoryIndex = 0;
+		unsigned long long SecurityParentDirectorySTRIndex = 0;
+		getfilenameindex(SecurityParentName, SpFs->Filenames, SpFs->FilenameCount, SecurityParentDirectoryIndex, SecurityParentDirectorySTRIndex);
+		getfilesize(SpFs->SectorSize, SecurityParentIndex, SpFs->TableStr, FileSize);
+		*BufLen = FileSize;
+		LPSTR* ALC = (LPSTR*)realloc(Buf, static_cast<size_t>(*BufLen) + 1);
+		if (!ALC)
+		{
+			free(SecurityParentName);
+			free(SecurityName);
+			free(BufLen);
+			free(Buf);
+			return STATUS_INSUFFICIENT_RESOURCES;
+		}
+		Buf = ALC;
+		ALC = NULL;
+		readwritefile(SpFs->hDisk, SpFs->SectorSize, SecurityParentIndex, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, SecurityParentDirectoryIndex, 0);
+	}
+	trunfile(SpFs->hDisk, SpFs->SectorSize, SecurityIndex, SpFs->TableSize, SpFs->DiskSize, 0, *BufLen, SecurityFileIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, SecurityIndex, 0, *BufLen, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, SecurityFileIndex, 1);
+	free(SecurityParentName);
+	free(SecurityName);
+	free(BufLen);
+	free(Buf);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+
+	return GetFileInfoInternal(SpFs, FileInfo, FileName);
 }
 
 static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess, PVOID* PFileContext, FSP_FSCTL_FILE_INFO* FileInfo)
@@ -304,12 +440,12 @@ static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateO
 	SPFS_FILE_CONTEXT* FileContext;
 
 	ReplaceBSWFS(FileName);
-	FileContext = (SPFS_FILE_CONTEXT*)calloc(sizeof * FileContext, 1);
+	FileContext = (SPFS_FILE_CONTEXT*)calloc(sizeof(*FileContext), 1);
 	if (!FileContext)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-	memset(FileContext, 0, sizeof * FileContext);
+	memset(FileContext, 0, sizeof(*FileContext));
 
 	CreateFlags = FILE_FLAG_BACKUP_SEMANTICS;
 	if (CreateOptions & FILE_DELETE_ON_CLOSE)
@@ -465,7 +601,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	getfilenameindex(FileName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 	renamefile(FileName, NewFileName, FilenameSTRIndex, SpFs->Filenames);
 
-	PWSTR SecurityName = (PWSTR)calloc(256, sizeof(wchar_t));
+	PWSTR SecurityName = (PWSTR)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
 	if (!SecurityName)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
@@ -474,7 +610,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	RemoveFirst(SecurityName);
 	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 
-	PWSTR NewSecurityName = (PWSTR)calloc(256, sizeof(wchar_t));
+	PWSTR NewSecurityName = (PWSTR)calloc(wcslen(NewFileName) + 1, sizeof(wchar_t));
 	if (!NewSecurityName)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
@@ -494,7 +630,7 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PSEC
 {
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
-	PWSTR SecurityName = (PWSTR)calloc(256, sizeof(wchar_t));
+	PWSTR SecurityName = (PWSTR)calloc(wcslen(FileCtx->Path) + 1, sizeof(wchar_t));
 	if (!SecurityName)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
@@ -550,19 +686,18 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	PWSTR Suffix = 0;
-	PWSTR DirectoryName = FileCtx->Path;
-	PWSTR ParentDirectoryName = (PWSTR)calloc(256, sizeof(wchar_t));
+	PWSTR ParentDirectoryName = (PWSTR)calloc(wcslen(FileCtx->Path) + 1, sizeof(wchar_t));
 	if (!ParentDirectoryName)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	memcpy(ParentDirectoryName, DirectoryName, wcslen(DirectoryName) * sizeof(wchar_t));
+	memcpy(ParentDirectoryName, FileCtx->Path, wcslen(FileCtx->Path) * sizeof(wchar_t));
 	GetParentName(ParentDirectoryName, Suffix);
 
-	if (DirectoryName[1] != L'\0')
+	if (FileCtx->Path[1] != L'\0')
 	{
-		if (!AddDirInfo(SpFs, DirectoryName, (PWSTR)L".", Buffer, BufferLength, PBytesTransferred))
+		if (!AddDirInfo(SpFs, FileCtx->Path, (PWSTR)L".", Buffer, BufferLength, PBytesTransferred))
 		{
 			free(ParentDirectoryName);
 			return STATUS_SUCCESS;
@@ -582,18 +717,20 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 	}
 
 	unsigned long long Offset = 0;
-	PWSTR FileName = (PWSTR)calloc(256, sizeof(wchar_t));
+	unsigned long long FileNameLen = wcslen(FileCtx->Path);
+	PWSTR ALC = NULL;
+	PWSTR FileName = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
 	if (!FileName)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-	PWSTR FileNameParent = (PWSTR)calloc(256, sizeof(wchar_t));
+	PWSTR FileNameParent = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
 	if (!FileNameParent)
 	{
 		free(FileName);
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-	PWSTR FileNameSuffix = (PWSTR)calloc(256, sizeof(wchar_t));
+	PWSTR FileNameSuffix = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
 	if (!FileNameSuffix)
 	{
 		free(FileName);
@@ -603,7 +740,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 	for (unsigned long long i = 0; i < SpFs->FilenameCount; i++)
 	{
 		unsigned long long j = 0;
-		for (; j < 256; j++)
+		for (;; j++)
 		{
 			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
 			{
@@ -611,12 +748,46 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 				break;
 			}
 			FileName[j] = SpFs->Filenames[Offset + j] & 0xff;
+			if (j > FileNameLen - 1)
+			{
+				FileNameLen += 0xff;
+				ALC = (PWSTR)realloc(FileName, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(FileName);
+					free(FileNameParent);
+					free(FileNameSuffix);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				FileName = ALC;
+				ALC = NULL;
+				ALC = (PWSTR)realloc(FileNameParent, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(FileName);
+					free(FileNameParent);
+					free(FileNameSuffix);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				FileNameParent = ALC;
+				ALC = NULL;
+				ALC = (PWSTR)realloc(FileNameSuffix, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(FileName);
+					free(FileNameParent);
+					free(FileNameSuffix);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				FileNameSuffix = ALC;
+				ALC = NULL;
+			}
 		}
 		FileName[j] = 0;
 
 		memcpy(FileNameParent, FileName, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
-		if (!wcscmp(FileNameParent, DirectoryName) && wcslen(FileNameParent) == wcslen(DirectoryName))
+		if (!wcscmp(FileNameParent, FileCtx->Path) && wcslen(FileNameParent) == wcslen(FileCtx->Path))
 		{
 			if (wcslen(FileNameSuffix) > 0)
 			{
@@ -630,9 +801,9 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 
 	FspFileSystemAddDirInfo(0, Buffer, BufferLength, PBytesTransferred);
 
+	free(FileName);
 	free(FileNameParent);
 	free(FileNameSuffix);
-	free(FileName);
 
 	return STATUS_SUCCESS;
 }
@@ -750,9 +921,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 
 	*PSpFs = 0;
 
-	Handle = CreateFileW(
-		Path, FILE_READ_ATTRIBUTES, 0, 0,
-		OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+	Handle = CreateFileW(Path, FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
 	if (Handle == INVALID_HANDLE_VALUE)
 	{
 		return FspNtStatusFromWin32(GetLastError());
@@ -937,13 +1106,13 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	// Need to init SpaceFS ^
 
 	unsigned o = 9;
-	SpFs = (SPFS*)malloc(sizeof * SpFs);
+	SpFs = (SPFS*)malloc(sizeof(*SpFs));
 	if (!SpFs)
 	{
 		Result = STATUS_INSUFFICIENT_RESOURCES;
 		goto exit;
 	}
-	memset(SpFs, 0, sizeof * SpFs);
+	memset(SpFs, 0, sizeof(*SpFs));
 
 	// Allocate SpFs ^
 

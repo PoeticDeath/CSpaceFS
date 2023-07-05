@@ -697,18 +697,35 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filenamecount, unsigned long long& filenameindex, unsigned long long& filenamestrindex)
 {
 	unsigned long long filenamesize = wcslen(filename);
+	unsigned long long tempnamesize = 256;
+	wchar_t* file = (wchar_t*)calloc(tempnamesize + 1, sizeof(wchar_t));
+	if (!file)
+	{
+		return;
+	}
 	for (; filenameindex < filenamecount;)
 	{
-		wchar_t file[256] = { 0 };
-		unsigned i = 0;
-		for (; i < 256; i++)
+		for (unsigned long long i = 0; i < tempnamesize; i++)
 		{
 			if ((filenames[filenamestrindex + i] & 0xff) == 255 || (filenames[filenamestrindex + i] & 0xff) == 42)
 			{
+				file[i] = 0;
 				filenamestrindex += static_cast<unsigned long long>(i) + 1;
 				break;
 			}
 			file[i] = filenames[filenamestrindex + i];
+			if (i > tempnamesize - 1)
+			{
+				tempnamesize += 256;
+				wchar_t* alc = (wchar_t*)realloc(file, tempnamesize + 1);
+				if (!alc)
+				{
+					free(file);
+					return;
+				}
+				file = alc;
+				alc = NULL;
+			}
 		}
 		if (!wcsincmp(file, filename, filenamesize) && wcslen(file) == filenamesize)
 		{
@@ -720,6 +737,7 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 		}
 	}
 	filenamestrindex--;
+	free(file);
 }
 
 unsigned long long gettablestrindex(PWSTR filename, char* filenames, char* tablestr, unsigned long long filenamecount)
@@ -861,35 +879,35 @@ int desimp(char* charmap, char*& tablestr)
 			range = 0;
 			break;
 		default: //0-9
-			if (cloc > clen - 3)
-			{
-				clen += 256;
-				alc = (char*)realloc(cblock, clen);
-				if (!alc)
-				{
-					free(cblock);
-					free(newtablestr);
-					return 1;
-				}
-				cblock = alc;
-				alc = NULL;
-			}
-			if (i > newtablelen - 3)
-			{
-				newtablelen += 256;
-				alc = (char*)realloc(newtablestr, newtablelen);
-				if (!alc)
-				{
-					free(cblock);
-					free(newtablestr);
-					return 1;
-				}
-				newtablestr = alc;
-				alc = NULL;
-			}
 			cblock[cloc] = tablestr[i];
 			cloc++;
 			break;
+		}
+		if (cloc > clen - 2)
+		{
+			clen += 256;
+			alc = (char*)realloc(cblock, clen);
+			if (!alc)
+			{
+				free(cblock);
+				free(newtablestr);
+				return 1;
+			}
+			cblock = alc;
+			alc = NULL;
+		}
+		if (i > newtablelen - 2)
+		{
+			newtablelen += 256;
+			alc = (char*)realloc(newtablestr, newtablelen);
+			if (!alc)
+			{
+				free(cblock);
+				free(newtablestr);
+				return 1;
+			}
+			newtablestr = alc;
+			alc = NULL;
 		}
 	}
 	free(cblock);
@@ -1121,7 +1139,15 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 		return 1;
 	}
 	fileinfo = alc;
-	char* file = NULL;
+	char* file = (char*)calloc(wcslen(filename) + 1, 1);
+	if (!file)
+	{
+		return 1;
+	}
+	for (unsigned i = 0; i < wcslen(filename); i++)
+	{
+		file[i] = filename[i] & 0xff;
+	}
 	unsigned long long oldlen = 0;
 	for (unsigned long long i = 0; i < strlen(filenames); i++)
 	{
@@ -1130,7 +1156,6 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 			oldlen = i + 1;
 		}
 	}
-	file = ((char*)filename);
 	strcpy_s(filenames + oldlen, strlen(file) + 1, file);
 	filenames[oldlen + strlen(file)] = 255;
 	filenames[oldlen + strlen(file) + 1] = 254;
@@ -1146,6 +1171,7 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 	char* gum = (char*)calloc((filenamecount + 1) * 11, 1);
 	if (!gum)
 	{
+		free(file);
 		return 1;
 	}
 	memcpy(gum, fileinfo + filenamecount * 24, filenamecount * 11);
@@ -1170,6 +1196,7 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 	guidmodes[4] = uid & 0xff;
 	guidmodes[5] = (mode >> 8) & 0xff;
 	guidmodes[6] = mode & 0xff;
+	winattrs |= 2048;
 	guidmodes[7] = (winattrs >> 24) & 0xff;
 	guidmodes[8] = (winattrs >> 16) & 0xff;
 	guidmodes[9] = (winattrs >> 8) & 0xff;
@@ -1799,17 +1826,17 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 
 	unsigned long long usedblocks = 0;
 
-	createfile((PWSTR)"/Test.bin", 545, 545, 448, 2048, filenamecount, fileinfo, filenames, charmap, tablestr);
-	createfile((PWSTR)"/Test", 545, 1000, 448, 2048, filenamecount, fileinfo, filenames, charmap, tablestr);
+	createfile((PWSTR)L"/Test.bin", 545, 545, 448, 2048, filenamecount, fileinfo, filenames, charmap, tablestr);
+	createfile((PWSTR)L"/Test", 545, 1000, 448, 2048, filenamecount, fileinfo, filenames, charmap, tablestr);
 	unsigned long long tindex = gettablestrindex((PWSTR)"/Test", filenames, tablestr, filenamecount);
 	unsigned long long tfilenameindex = 0;
 	unsigned long long tfilenamestrindex = 0;
-	getfilenameindex((PWSTR)"/Test", filenames, filenamecount, tfilenameindex, tfilenamestrindex);
+	getfilenameindex((PWSTR)L"/Test", filenames, filenamecount, tfilenameindex, tfilenamestrindex);
 	trunfile(hDisk, sectorsize, tindex, tablesize, disksize.QuadPart, 0, 10, tfilenameindex, charmap, tablestr, fileinfo, usedblocks);
-	unsigned long long index = gettablestrindex((PWSTR)"/Test.bin", filenames, tablestr, filenamecount);
+	unsigned long long index = gettablestrindex((PWSTR)L"/Test.bin", filenames, tablestr, filenamecount);
 	unsigned long long filenameindex = 0;
 	unsigned long long filenamestrindex = 0;
-	getfilenameindex((PWSTR)"/Test.bin", filenames, filenamecount, filenameindex, filenamestrindex);
+	getfilenameindex((PWSTR)L"/Test.bin", filenames, filenamecount, filenameindex, filenamestrindex);
 	alloc(sectorsize, disksize.QuadPart, tablesize, charmap, tablestr, index, 2097152 * 3 + 512, usedblocks);
 	unsigned long long filesize = 0;
 	getfilesize(sectorsize, index, tablestr, filesize);
@@ -1849,10 +1876,10 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	chuid(fileinfo, 1, 0, uid, 0);
 	std::cout << uid << " " << (time_t)time << std::endl;
 	std::cout << fileinfo << " " << filenames << " " << tablestr << std::endl;
-	tindex = gettablestrindex((PWSTR)"/Test", filenames, tablestr, filenamecount);
+	tindex = gettablestrindex((PWSTR)L"/Test", filenames, tablestr, filenamecount);
 	tfilenameindex = 0;
 	tfilenamestrindex = 0;
-	getfilenameindex((PWSTR)"/Test", filenames, filenamecount, tfilenameindex, tfilenamestrindex);
+	getfilenameindex((PWSTR)L"/Test", filenames, filenamecount, tfilenameindex, tfilenamestrindex);
 	deletefile(tindex, tfilenameindex, tfilenamestrindex, filenamecount, fileinfo, filenames, tablestr);
 	simptable(hDisk, sectorsize, charmap, tablesize, extratablesize, filenamecount, fileinfo, filenames, tablestr, table, emap, dmap);
 	std::cout << tablestr << std::endl;
