@@ -181,9 +181,9 @@ static NTSTATUS GetFileInfoInternal(SPFS* SpFs, FSP_FSCTL_FILE_INFO* FileInfo, P
 	FileInfo->ReparseTag = 0;
 	FileInfo->FileSize = FileSize;
 	FileInfo->AllocationSize = (FileSize + SpFs->SectorSize - 1) / SpFs->SectorSize * SpFs->SectorSize;
-	FileInfo->CreationTime = CreationTime;
-	FileInfo->LastAccessTime = LastAccessTime;
-	FileInfo->LastWriteTime = LastWriteTime;
+	FileInfo->CreationTime = CreationTime * 10000000 + 116444736000000000;
+	FileInfo->LastAccessTime = LastAccessTime * 10000000 + 116444736000000000;
+	FileInfo->LastWriteTime = LastWriteTime * 10000000 + 116444736000000000;
 	FileInfo->ChangeTime = FileInfo->LastWriteTime;
 	FileInfo->IndexNumber = FilenameIndex;
 	FileInfo->HardLinks = 0;
