@@ -573,17 +573,17 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UIN
 		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
 	}
 
+	if (LastAccessTime)
+	{
+		double ATime = (LastAccessTime - static_cast<double>(116444736000000000)) / 10000000;
+		chtime(SpFs->FileInfo, FilenameIndex, ATime, 1);
+	}
+
 	if (LastWriteTime || ChangeTime)
 	{
 		LastWriteTime = max(LastWriteTime, ChangeTime);
 		double WTime = (LastWriteTime - static_cast<double>(116444736000000000)) / 10000000;
-		chtime(SpFs->FileInfo, FilenameIndex, WTime, 1);
-	}
-
-	if (LastAccessTime)
-	{
-		double ATime = (LastAccessTime - static_cast<double>(116444736000000000)) / 10000000;
-		chtime(SpFs->FileInfo, FilenameIndex, ATime, 3);
+		chtime(SpFs->FileInfo, FilenameIndex, WTime, 3);
 	}
 
 	if (CreationTime)
