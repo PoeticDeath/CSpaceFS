@@ -561,7 +561,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned long long& index, unsigned long long filesize, unsigned long long size)
 {
 	char* alc = NULL;
-	char* alc1 = (char*)calloc(strlen(tablestr) - index + 1, 1);
+	char* alc1 = (char*)calloc(strlen(tablestr) - index, 1);
 	char* alc2 = (char*)calloc(1, 1);
 	if (!alc1)
 	{
