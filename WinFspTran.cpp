@@ -112,6 +112,29 @@ static void RemoveFirst(PWSTR& FileName)
 	free(NewFileName);
 }
 
+static void RemoveStream(PWSTR& FileName)
+{
+	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
+	if (!NewFileName)
+	{
+		return;
+	}
+
+	unsigned long long i = 0;
+	for (; i < wcslen(FileName); i++)
+	{
+		NewFileName[i] = FileName[i];
+		if (FileName[i + 1] == ':')
+		{
+			NewFileName[i + 1] = '\0';
+			break;
+		}
+	}
+
+	memcpy(FileName, NewFileName, (i + 1) * sizeof(wchar_t));
+	free(NewFileName);
+}
+
 static void GetParentName(PWSTR& FileName, PWSTR& Suffix)
 {
 	unsigned Loc = 0;
@@ -293,6 +316,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 		}
 		memcpy(SecurityName, Filename, wcslen(Filename) * sizeof(wchar_t));
 		RemoveFirst(SecurityName);
+		RemoveStream(SecurityName);
 		PSECURITY_DESCRIPTOR S = calloc(*PSecurityDescriptorSize, 1);
 		getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 		unsigned long long Index = gettablestrindex(SecurityName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
@@ -372,42 +396,26 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 
 	createfile(Filename, gid, uid, 448 + (FileAttributes & FILE_ATTRIBUTE_DIRECTORY) * 16429, winattrs, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
 
-	PWSTR SecurityName = (PWSTR)calloc(wcslen(Filename) + 1, sizeof(wchar_t));
-	if (!SecurityName)
+	if (std::wstring(Filename).find(L":") == std::string::npos)
 	{
-		free(SecurityParentName);
-		return STATUS_INSUFFICIENT_RESOURCES;
-	}
-	memcpy(SecurityName, Filename, wcslen(Filename) * sizeof(wchar_t));
-	RemoveFirst(SecurityName);
+		PWSTR SecurityName = (PWSTR)calloc(wcslen(Filename) + 1, sizeof(wchar_t));
+		if (!SecurityName)
+		{
+			free(SecurityParentName);
+			return STATUS_INSUFFICIENT_RESOURCES;
+		}
+		memcpy(SecurityName, Filename, wcslen(Filename) * sizeof(wchar_t));
+		RemoveFirst(SecurityName);
 
-	PULONG BufLen = (PULONG)calloc(sizeof(PULONG), 1);
-	if (!BufLen)
-	{
-		free(SecurityParentName);
-		free(SecurityName);
-		return STATUS_INSUFFICIENT_RESOURCES;
-	}
-	*BufLen = 65536;
-	LPSTR* Buf = (LPSTR*)calloc(static_cast<size_t>(*BufLen) + 1, 1);
-	if (!Buf)
-	{
-		free(SecurityParentName);
-		free(SecurityName);
-		free(BufLen);
-		return STATUS_INSUFFICIENT_RESOURCES;
-	}
-	unsigned long long SecurityIndex = gettablestrindex(SecurityName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
-	unsigned long long SecurityFileIndex = 0;
-	unsigned long long SecurityFileSTRIndex = 0;
-
-	createfile(SecurityName, gid, uid, 448, 2048, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
-	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, SecurityFileIndex, SecurityFileSTRIndex);
-	ConvertSecurityDescriptorToStringSecurityDescriptorA(SecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, BufLen);
-	if (*BufLen > 65536)
-	{
-		free(Buf);
-		Buf = (LPSTR*)calloc(static_cast<size_t>(*BufLen) + 1, 1);
+		PULONG BufLen = (PULONG)calloc(sizeof(PULONG), 1);
+		if (!BufLen)
+		{
+			free(SecurityParentName);
+			free(SecurityName);
+			return STATUS_INSUFFICIENT_RESOURCES;
+		}
+		*BufLen = 65536;
+		LPSTR* Buf = (LPSTR*)calloc(static_cast<size_t>(*BufLen) + 1, 1);
 		if (!Buf)
 		{
 			free(SecurityParentName);
@@ -415,36 +423,56 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 			free(BufLen);
 			return STATUS_INSUFFICIENT_RESOURCES;
 		}
+		unsigned long long SecurityIndex = gettablestrindex(SecurityName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+		unsigned long long SecurityFileIndex = 0;
+		unsigned long long SecurityFileSTRIndex = 0;
+
+		createfile(SecurityName, gid, uid, 448, 2048, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
+		getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, SecurityFileIndex, SecurityFileSTRIndex);
 		ConvertSecurityDescriptorToStringSecurityDescriptorA(SecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, BufLen);
-	}
-	if (std::string(*Buf).find("D:P") == std::string::npos)
-	{
-		unsigned long long FileSize = 0;
-		unsigned long long SecurityParentIndex = gettablestrindex(SecurityParentName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
-		unsigned long long SecurityParentDirectoryIndex = 0;
-		unsigned long long SecurityParentDirectorySTRIndex = 0;
-		getfilenameindex(SecurityParentName, SpFs->Filenames, SpFs->FilenameCount, SecurityParentDirectoryIndex, SecurityParentDirectorySTRIndex);
-		getfilesize(SpFs->SectorSize, SecurityParentIndex, SpFs->TableStr, FileSize);
-		*BufLen = FileSize;
-		LPSTR* ALC = (LPSTR*)realloc(Buf, static_cast<size_t>(*BufLen) + 1);
-		if (!ALC)
+		if (*BufLen > 65536)
 		{
-			free(SecurityParentName);
-			free(SecurityName);
-			free(BufLen);
 			free(Buf);
-			return STATUS_INSUFFICIENT_RESOURCES;
+			Buf = (LPSTR*)calloc(static_cast<size_t>(*BufLen) + 1, 1);
+			if (!Buf)
+			{
+				free(SecurityParentName);
+				free(SecurityName);
+				free(BufLen);
+				return STATUS_INSUFFICIENT_RESOURCES;
+			}
+			ConvertSecurityDescriptorToStringSecurityDescriptorA(SecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, BufLen);
 		}
-		Buf = ALC;
-		ALC = NULL;
-		readwritefile(SpFs->hDisk, SpFs->SectorSize, SecurityParentIndex, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, SecurityParentDirectoryIndex, 0);
+		if (std::string(*Buf).find("D:P") == std::string::npos)
+		{
+			unsigned long long FileSize = 0;
+			unsigned long long SecurityParentIndex = gettablestrindex(SecurityParentName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+			unsigned long long SecurityParentDirectoryIndex = 0;
+			unsigned long long SecurityParentDirectorySTRIndex = 0;
+			getfilenameindex(SecurityParentName, SpFs->Filenames, SpFs->FilenameCount, SecurityParentDirectoryIndex, SecurityParentDirectorySTRIndex);
+			getfilesize(SpFs->SectorSize, SecurityParentIndex, SpFs->TableStr, FileSize);
+			*BufLen = FileSize;
+			LPSTR* ALC = (LPSTR*)realloc(Buf, static_cast<size_t>(*BufLen) + 1);
+			if (!ALC)
+			{
+				free(SecurityParentName);
+				free(SecurityName);
+				free(BufLen);
+				free(Buf);
+				return STATUS_INSUFFICIENT_RESOURCES;
+			}
+			Buf = ALC;
+			ALC = NULL;
+			readwritefile(SpFs->hDisk, SpFs->SectorSize, SecurityParentIndex, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, SecurityParentDirectoryIndex, 0);
+		}
+		trunfile(SpFs->hDisk, SpFs->SectorSize, SecurityIndex, SpFs->TableSize, SpFs->DiskSize, 0, *BufLen, SecurityFileIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks);
+		readwritefile(SpFs->hDisk, SpFs->SectorSize, SecurityIndex, 0, *BufLen, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, SecurityFileIndex, 1);
+		free(SecurityName);
+		free(BufLen);
+		free(Buf);
 	}
-	trunfile(SpFs->hDisk, SpFs->SectorSize, SecurityIndex, SpFs->TableSize, SpFs->DiskSize, 0, *BufLen, SecurityFileIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks);
-	readwritefile(SpFs->hDisk, SpFs->SectorSize, SecurityIndex, 0, *BufLen, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, SecurityFileIndex, 1);
+
 	free(SecurityParentName);
-	free(SecurityName);
-	free(BufLen);
-	free(Buf);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 
 	return GetFileInfoInternal(SpFs, FileInfo, Filename);
@@ -792,6 +820,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	}
 	memcpy(SecurityName, FileCtx->Path, wcslen(FileCtx->Path) * sizeof(wchar_t));
 	RemoveFirst(SecurityName);
+	RemoveStream(SecurityName);
 	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 
 	PWSTR NewSecurityName = (PWSTR)calloc(wcslen(NewFilename) + 1, sizeof(wchar_t));
@@ -802,6 +831,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	}
 	memcpy(NewSecurityName, NewFilename, wcslen(NewFilename) * sizeof(wchar_t));
 	RemoveFirst(NewSecurityName);
+	RemoveStream(NewSecurityName);
 	renamefile(SecurityName, NewSecurityName, FilenameSTRIndex, SpFs->Filenames);
 
 	unsigned long long Offset = 0;
@@ -945,6 +975,7 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PSEC
 	unsigned long long FilenameSTRIndex = 0;
 
 	RemoveFirst(SecurityName);
+	RemoveStream(SecurityName);
 	PSECURITY_DESCRIPTOR S = calloc(*PSecurityDescriptorSize, 1);
 	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 
