@@ -1155,6 +1155,10 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 		{
 			oldlen = i + 1;
 		}
+		if ((filenames[i] & 0xff) == 254)
+		{
+			break;
+		}
 	}
 	strcpy_s(filenames + oldlen, strlen(file) + 1, file);
 	filenames[oldlen + strlen(file)] = 255;
