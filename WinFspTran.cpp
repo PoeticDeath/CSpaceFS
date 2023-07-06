@@ -316,7 +316,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	ULONG CreateFlags;
 	SPFS_FILE_CONTEXT* FileContext;
-	NTSTATUS Result;
+	NTSTATUS Result = 0;
 	PWSTR Filename = (PWSTR)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
 	if (!Filename)
 	{
@@ -447,10 +447,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 	free(Buf);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 
-	Result = GetFileInfoInternal(SpFs, FileInfo, Filename);
-	free(Filename);
-
-	return Result;
+	return GetFileInfoInternal(SpFs, FileInfo, Filename);
 }
 
 static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess, PVOID* PFileContext, FSP_FSCTL_FILE_INFO* FileInfo)
@@ -497,6 +494,9 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 
 static VOID Close(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext)
 {
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	free(FileCtx->Path);
+	free(FileCtx);
 	return;
 }
 
@@ -534,7 +534,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buff
 {
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
-	NTSTATUS Result;
+	NTSTATUS Result = 0;
 
 	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	unsigned long long FilenameIndex = 0;
@@ -737,42 +737,33 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR 
 static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
 {
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	unsigned long long FilenameIndex = 0;
 	unsigned long long FilenameSTRIndex = 0;
-	PWSTR Filename = (PWSTR)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
-	if (!Filename)
-	{
-		return STATUS_INSUFFICIENT_RESOURCES;
-	}
 	PWSTR NewFilename = (PWSTR)calloc(wcslen(NewFileName) + 1, sizeof(wchar_t));
 	if (!NewFilename)
 	{
-		free(Filename);
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
-	memcpy(Filename, FileName, wcslen(FileName) * sizeof(wchar_t));
 	memcpy(NewFilename, NewFileName, wcslen(NewFileName) * sizeof(wchar_t));
-	ReplaceBSWFS(Filename);
 	ReplaceBSWFS(NewFilename);
-	getfilenameindex(Filename, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
-	renamefile(Filename, NewFilename, FilenameSTRIndex, SpFs->Filenames);
+	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	renamefile(FileCtx->Path, NewFilename, FilenameSTRIndex, SpFs->Filenames);
 
-	PWSTR SecurityName = (PWSTR)calloc(wcslen(Filename) + 1, sizeof(wchar_t));
+	PWSTR SecurityName = (PWSTR)calloc(wcslen(FileCtx->Path) + 1, sizeof(wchar_t));
 	if (!SecurityName)
 	{
-		free(Filename);
 		free(NewFilename);
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-	memcpy(SecurityName, Filename, wcslen(Filename) * sizeof(wchar_t));
+	memcpy(SecurityName, FileCtx->Path, wcslen(FileCtx->Path) * sizeof(wchar_t));
 	RemoveFirst(SecurityName);
 	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 
 	PWSTR NewSecurityName = (PWSTR)calloc(wcslen(NewFilename) + 1, sizeof(wchar_t));
 	if (!NewSecurityName)
 	{
-		free(Filename);
 		free(NewFilename);
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
@@ -780,7 +771,17 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	RemoveFirst(NewSecurityName);
 	renamefile(SecurityName, NewSecurityName, FilenameSTRIndex, SpFs->Filenames);
 
-	free(Filename);
+	PWSTR ALC = (PWSTR)realloc(FileCtx->Path, (wcslen(NewFilename) + 1) * sizeof(wchar_t));
+	if (!ALC)
+	{
+		free(NewFilename);
+		free(SecurityName);
+		free(NewSecurityName);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	FileCtx->Path = ALC;
+	ALC = NULL;
+	memcpy(FileCtx->Path, NewFilename, wcslen(NewFilename) * sizeof(wchar_t));
 	free(NewFilename);
 	free(SecurityName);
 	free(NewSecurityName);
@@ -1088,7 +1089,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	DWORD LastError;
 	FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 	SPFS* SpFs = 0;
-	NTSTATUS Result;
+	NTSTATUS Result = 0;
 
 	*PSpFs = 0;
 
@@ -1429,7 +1430,7 @@ NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 	PWSTR MountPoint = 0;
 	ULONG SectorSize = 0;
 	ULONG DebugFlags = 0;
-	NTSTATUS Result;
+	NTSTATUS Result = 0;
 	SPFS* SpFs = 0;
 
 	for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
