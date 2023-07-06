@@ -388,7 +388,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 	ReplaceBSWFS(Filename);
 
 	Result = FindDuplicate(SpFs, Filename);
-	if (Result != STATUS_SUCCESS)
+	if (!NT_SUCCESS(Result))
 	{
 		free(Filename);
 		return Result;
@@ -1056,7 +1056,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	ReplaceBSWFS(NewFilename);
 
 	Result = FindDuplicate(SpFs, NewFilename);
-	if (Result != STATUS_SUCCESS)
+	if (!NT_SUCCESS(Result))
 	{
 		free(NewFilename);
 		return Result;
@@ -1324,7 +1324,78 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PSEC
 
 static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECURITY_INFORMATION SecurityInformation, PSECURITY_DESCRIPTOR ModificationDescriptor)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	PWSTR SecurityName = (PWSTR)calloc(wcslen(FileCtx->Path) + 1, sizeof(wchar_t));
+	if (!SecurityName)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	memcpy(SecurityName, FileCtx->Path, wcslen(FileCtx->Path) * sizeof(wchar_t));
+
+	unsigned long long FilenameIndex = 0;
+	unsigned long long FilenameSTRIndex = 0;
+
+	RemoveFirst(SecurityName);
+	RemoveStream(SecurityName);
+	PULONG PSecurityDescriptorSize = (PULONG)calloc(sizeof(PULONG), 1);
+	*PSecurityDescriptorSize = 65536;
+	PSECURITY_DESCRIPTOR S = (PSECURITY_DESCRIPTOR)calloc(*PSecurityDescriptorSize, 1);
+	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+
+	unsigned long long Index = gettablestrindex(SecurityName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	unsigned long long FileSize = 0;
+
+	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+	char* buf = (char*)calloc(FileSize + 1, 1);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 0);
+	ConvertStringSecurityDescriptorToSecurityDescriptorA(buf, SDDL_REVISION_1, &S, PSecurityDescriptorSize);
+	if (*PSecurityDescriptorSize > 65536)
+	{
+		PSECURITY_DESCRIPTOR SALC = (PSECURITY_DESCRIPTOR)realloc(S, *PSecurityDescriptorSize);
+		if (!SALC)
+		{
+			free(buf);
+			free(SecurityName);
+			free(PSecurityDescriptorSize);
+			return STATUS_INSUFFICIENT_RESOURCES;
+		}
+		S = SALC;
+		SALC = NULL;
+		ConvertStringSecurityDescriptorToSecurityDescriptorA(buf, SDDL_REVISION_1, &S, PSecurityDescriptorSize);
+	}
+	free(buf);
+	
+	PSECURITY_DESCRIPTOR NewSecurityDescriptor;
+	SIZE_T FileSecuritySize;
+	NTSTATUS Result;
+
+	Result = FspSetSecurityDescriptor(S, SecurityInformation, ModificationDescriptor, &NewSecurityDescriptor);
+	if (!NT_SUCCESS(Result))
+	{
+		free(PSecurityDescriptorSize);
+		return Result;
+	}
+	FileSecuritySize = GetSecurityDescriptorLength(NewSecurityDescriptor);
+	
+	*PSecurityDescriptorSize = FileSecuritySize;
+	char* ALC = (char*)calloc(static_cast<size_t>(*PSecurityDescriptorSize) + 1, 1);
+	if (!ALC)
+	{
+		free(PSecurityDescriptorSize);
+		free(SecurityName);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	ConvertSecurityDescriptorToStringSecurityDescriptorA(NewSecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, &ALC, PSecurityDescriptorSize);
+	FspDeleteSecurityDescriptor(NewSecurityDescriptor, (NTSTATUS(*)())FspSetSecurityDescriptor);
+
+	trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, *PSecurityDescriptorSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, *PSecurityDescriptorSize, SpFs->DiskSize, SpFs->TableStr, ALC, SpFs->FileInfo, FilenameIndex, 1);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+	free(PSecurityDescriptorSize);
+	free(SecurityName);
+
+	return STATUS_SUCCESS;
 }
 
 static BOOLEAN AddDirInfo(SPFS* SpFs, PWSTR Name, PWSTR FileName, PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
