@@ -422,7 +422,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 			{
 				bytecount = blocksize;
 			}
-			while (bytecount < blocksize && o < sectorsize)
+			while (bytecount < blocksize)
 			{
 				if (!(partlist[std::to_string(i)][o / 64] & static_cast<unsigned long long>(1) << o % 64))
 				{
@@ -430,19 +430,19 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 				}
 				else
 				{
-					o++;
 					bytecount = 0;
 				}
 				if (blocksize > sectorsize - o)
 				{
 					break;
 				}
+				o++;
 			}
 			if (bytecount == blocksize)
 			{
 				if (blocksize % sectorsize)
 				{
-					s = std::to_string(i) + ";" + std::to_string(o) + ";" + std::to_string(o + bytecount);
+					s = std::to_string(i) + ";" + std::to_string(o - bytecount) + ";" + std::to_string(o);
 				}
 				else
 				{
@@ -1652,7 +1652,7 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	{
 		if (size % sectorsize)
 		{
-			char* temp = (char*)calloc(size % sectorsize, 1);
+			char* temp = (char*)calloc(size % sectorsize + 1, 1);
 			readwritefile(hDisk, sectorsize, index, size - size % sectorsize, size % sectorsize, disksize, tablestr, temp, fileinfo, filenameindex, 0);
 			dealloc(sectorsize, charmap, tablestr, index, size, size % sectorsize);
 			alloc(sectorsize, disksize, tablesize, charmap, tablestr, index, newsize - (size - size % sectorsize), usedblocks);
