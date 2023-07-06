@@ -316,6 +316,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	ULONG CreateFlags;
 	SPFS_FILE_CONTEXT* FileContext;
+	NTSTATUS Result;
 	PWSTR Filename = (PWSTR)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
 	if (!Filename)
 	{
@@ -446,7 +447,10 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 	free(Buf);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 
-	return GetFileInfoInternal(SpFs, FileInfo, Filename);
+	Result = GetFileInfoInternal(SpFs, FileInfo, Filename);
+	free(Filename);
+
+	return Result;
 }
 
 static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess, PVOID* PFileContext, FSP_FSCTL_FILE_INFO* FileInfo)
@@ -530,6 +534,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buff
 {
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	NTSTATUS Result;
 
 	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	unsigned long long FilenameIndex = 0;
@@ -557,10 +562,10 @@ static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buff
 	memcpy(Buf, Buffer, Length);
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, FilenameIndex, 1);
 	*PBytesTransferred = Length;
-	GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
+	Result = GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
 	free(Buf);
 
-	return STATUS_SUCCESS;
+	return Result;
 }
 
 static NTSTATUS Flush(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, FSP_FSCTL_FILE_INFO* FileInfo)
