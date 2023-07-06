@@ -527,6 +527,21 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 		}
 	}
 
+	time_t ltime;
+	time(&ltime);
+
+	if (Flags & FspCleanupSetLastAccessTime)
+	{
+		double ATime = (double)ltime;
+		chtime(SpFs->FileInfo, FilenameIndex, ATime, 1);
+	}
+
+	if (Flags & FspCleanupSetLastWriteTime || Flags & FspCleanupSetChangeTime)
+	{
+		double WTime = (double)ltime;
+		chtime(SpFs->FileInfo, FilenameIndex, WTime, 3);
+	}
+
 	if (Flags & FspCleanupDelete)
 	{
 		deletefile(Index, FilenameIndex, FilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
