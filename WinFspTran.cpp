@@ -114,25 +114,14 @@ static void RemoveFirst(PWSTR& FileName)
 
 static void RemoveStream(PWSTR& FileName)
 {
-	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
-	if (!NewFileName)
+	for (unsigned long long i = 0; i < wcslen(FileName); i++)
 	{
-		return;
-	}
-
-	unsigned long long i = 0;
-	for (; i < wcslen(FileName); i++)
-	{
-		NewFileName[i] = FileName[i];
-		if (FileName[i + 1] == '\0' || FileName[i + 1] == ':')
+		if (FileName[i] == '\0' || FileName[i] == ':')
 		{
-			NewFileName[i + 1] = '\0';
+			FileName[i] = '\0';
 			break;
 		}
 	}
-
-	memcpy(FileName, NewFileName, (i + 1) * sizeof(wchar_t));
-	free(NewFileName);
 }
 
 static void GetParentName(PWSTR& FileName, PWSTR& Suffix)
@@ -544,6 +533,80 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 		Index = gettablestrindex(FileCtx->Path + 1, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 		getfilenameindex(FileCtx->Path + 1, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 		deletefile(Index, FilenameIndex, FilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
+
+		unsigned long long TempIndex = 0;
+		unsigned long long TempFilenameIndex = 0;
+		unsigned long long TempFilenameSTRIndex = 0;
+		unsigned long long Offset = 0;
+		unsigned long long O = 0;
+		unsigned long long FileNameLen = wcslen(FileCtx->Path), FileNameLenT = wcslen(FileCtx->Path);
+		PWSTR ALC = NULL;
+		PWSTR Filename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+		if (!Filename)
+		{
+			return;
+		}
+		PWSTR FileNameNoStream = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+		if (!FileNameNoStream)
+		{
+			free(Filename);
+			return;
+		}
+
+		for (unsigned long long i = 0; i < SpFs->FilenameCount + O; i++)
+		{
+			unsigned long long j = 0;
+			for (;; j++)
+			{
+				if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+				{
+					Offset += j + 1;
+					break;
+				}
+				Filename[j] = SpFs->Filenames[Offset + j] & 0xff;
+				if (j > FileNameLen - 1)
+				{
+					FileNameLen += 0xff;
+					ALC = (PWSTR)realloc(Filename, (FileNameLen + 1) * sizeof(wchar_t));
+					if (!ALC)
+					{
+						free(Filename);
+						free(FileNameNoStream);
+						return;
+					}
+					Filename = ALC;
+					ALC = NULL;
+					ALC = (PWSTR)realloc(FileNameNoStream, (FileNameLen + 1) * sizeof(wchar_t));
+					if (!ALC)
+					{
+						free(Filename);
+						free(FileNameNoStream);
+						return;
+					}
+					FileNameNoStream = ALC;
+					ALC = NULL;
+				}
+			}
+			Filename[j] = 0;
+
+			memcpy(FileNameNoStream, Filename, (j + 1) * sizeof(wchar_t));
+			RemoveStream(FileNameNoStream);
+			if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLenT) && wcslen(FileNameNoStream) == FileNameLenT)
+			{
+				if (std::wstring(Filename).find(L":") != std::string::npos)
+				{
+					getfilenameindex(Filename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
+					TempIndex = gettablestrindex(Filename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+					deletefile(TempIndex, TempFilenameIndex, TempFilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
+					Offset -= wcslen(Filename) + 1;
+					O++;
+				}
+			}
+		}
+
+		free(Filename);
+		free(FileNameNoStream);
+
 		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 	}
 
@@ -798,6 +861,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	unsigned long long FilenameIndex = 0;
 	unsigned long long FilenameSTRIndex = 0;
+	unsigned long long TempIndex = 0;
 	unsigned long long TempFilenameIndex = 0;
 	unsigned long long TempFilenameSTRIndex = 0;
 
@@ -936,9 +1000,76 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 		}
 	}
 
+	Offset = 0;
+	unsigned long long O = 0;
+	PWSTR FileNameNoStream = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!FileNameNoStream)
+	{
+		free(TempFilename);
+		free(FileNameParent);
+		free(FileNameSuffix);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	for (unsigned long long i = 0; i < SpFs->FilenameCount + O; i++)
+	{
+		unsigned long long j = 0;
+		for (;; j++)
+		{
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			{
+				Offset += j + 1;
+				break;
+			}
+			TempFilename[j] = SpFs->Filenames[Offset + j] & 0xff;
+			if (j > FileNameLen - 1)
+			{
+				FileNameLen += 0xff;
+				ALC = (PWSTR)realloc(TempFilename, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(TempFilename);
+					free(FileNameParent);
+					free(FileNameSuffix);
+					free(FileNameNoStream);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				TempFilename = ALC;
+				ALC = NULL;
+				ALC = (PWSTR)realloc(FileNameNoStream, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(TempFilename);
+					free(FileNameParent);
+					free(FileNameSuffix);
+					free(FileNameNoStream);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				FileNameNoStream = ALC;
+				ALC = NULL;
+			}
+		}
+		TempFilename[j] = 0;
+
+		memcpy(FileNameNoStream, TempFilename, (j + 1) * sizeof(wchar_t));
+		RemoveStream(FileNameNoStream);
+		if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLenT) && wcslen(FileNameNoStream) == FileNameLenT)
+		{
+			if (std::wstring(TempFilename).find(L":") != std::string::npos)
+			{
+				getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
+				TempIndex = gettablestrindex(TempFilename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+				deletefile(TempIndex, TempFilenameIndex, TempFilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
+				Offset -= wcslen(TempFilename) + 1;
+				O++;
+			}
+		}
+	}
+
 	free(TempFilename);
 	free(FileNameParent);
 	free(FileNameSuffix);
+	free(FileNameNoStream);
 
 	ALC = (PWSTR)realloc(FileCtx->Path, (wcslen(NewFilename) + 1) * sizeof(wchar_t));
 	if (!ALC)
