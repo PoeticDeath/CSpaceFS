@@ -613,13 +613,98 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT
 		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 	}
 
-	GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
-	return STATUS_SUCCESS;
+	return GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
 }
 
 static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	unsigned long long Offset = 0;
+	unsigned long long FileNameLen = wcslen(FileCtx->Path);
+	PWSTR ALC = NULL;
+	PWSTR Filename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!Filename)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	PWSTR FileNameParent = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!FileNameParent)
+	{
+		free(Filename);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	PWSTR FileNameSuffix = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!FileNameSuffix)
+	{
+		free(Filename);
+		free(FileNameParent);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	for (unsigned long long i = 0; i < SpFs->FilenameCount; i++)
+	{
+		unsigned long long j = 0;
+		for (;; j++)
+		{
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			{
+				Offset += j + 1;
+				break;
+			}
+			Filename[j] = SpFs->Filenames[Offset + j] & 0xff;
+			if (j > FileNameLen - 1)
+			{
+				FileNameLen += 0xff;
+				ALC = (PWSTR)realloc(Filename, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(Filename);
+					free(FileNameParent);
+					free(FileNameSuffix);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				Filename = ALC;
+				ALC = NULL;
+				ALC = (PWSTR)realloc(FileNameParent, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(Filename);
+					free(FileNameParent);
+					free(FileNameSuffix);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				FileNameParent = ALC;
+				ALC = NULL;
+				ALC = (PWSTR)realloc(FileNameSuffix, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(Filename);
+					free(FileNameParent);
+					free(FileNameSuffix);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				FileNameSuffix = ALC;
+				ALC = NULL;
+			}
+		}
+		Filename[j] = 0;
+
+		memcpy(FileNameParent, Filename, (j + 1) * sizeof(wchar_t));
+		GetParentName(FileNameParent, FileNameSuffix);
+		if (!wcscmp(FileNameParent, FileCtx->Path) && wcslen(FileNameParent) == wcslen(FileCtx->Path))
+		{
+			if (wcslen(FileNameSuffix) > 0)
+			{
+				free(Filename);
+				free(FileNameParent);
+				free(FileNameSuffix);
+				return STATUS_DIRECTORY_NOT_EMPTY;
+			}
+		}
+	}
+
+	return STATUS_SUCCESS;
 }
 
 static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, PWSTR NewFileName, BOOLEAN ReplaceIfExists)
