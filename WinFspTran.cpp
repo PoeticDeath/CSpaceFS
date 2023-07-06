@@ -354,7 +354,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 		memcpy(SecurityName, Filename, wcslen(Filename) * sizeof(wchar_t));
 		RemoveFirst(SecurityName);
 		RemoveStream(SecurityName);
-		PSECURITY_DESCRIPTOR S = (PSECURITY_DESCRIPTOR)calloc(*PSecurityDescriptorSize, 1);
+		PSECURITY_DESCRIPTOR S;
 		getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 		unsigned long long Index = gettablestrindex(SecurityName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 		free(SecurityName);
@@ -373,7 +373,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 			memcpy(SecurityDescriptor, S, *PSecurityDescriptorSize);
 		}
 		free(buf);
-		//free(S);
+		FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())FspSetSecurityDescriptor);
 	}
 
 	free(Filename);
@@ -1313,7 +1313,7 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PSEC
 
 	RemoveFirst(SecurityName);
 	RemoveStream(SecurityName);
-	PSECURITY_DESCRIPTOR S = (PSECURITY_DESCRIPTOR)calloc(*PSecurityDescriptorSize, 1);
+	PSECURITY_DESCRIPTOR S;
 	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 
 	unsigned long long Index = gettablestrindex(SecurityName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
@@ -1330,7 +1330,7 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PSEC
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, (char*&)buf, SpFs->FileInfo, FilenameIndex, 0);
 	ConvertStringSecurityDescriptorToSecurityDescriptorA(buf, SDDL_REVISION_1, &S, (PULONG)PSecurityDescriptorSize);
 	memcpy(SecurityDescriptor, S, *PSecurityDescriptorSize);
-	free(buf);
+	FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())FspSetSecurityDescriptor);
 
 	return STATUS_SUCCESS;
 }
@@ -1352,8 +1352,12 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 	RemoveFirst(SecurityName);
 	RemoveStream(SecurityName);
 	PULONG PSecurityDescriptorSize = (PULONG)calloc(sizeof(PULONG), 1);
-	*PSecurityDescriptorSize = 65536;
-	PSECURITY_DESCRIPTOR S = (PSECURITY_DESCRIPTOR)calloc(*PSecurityDescriptorSize, 1);
+	if (!PSecurityDescriptorSize)
+	{
+		free(SecurityName);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	PSECURITY_DESCRIPTOR S;
 	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 
 	unsigned long long Index = gettablestrindex(SecurityName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
@@ -1363,20 +1367,6 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 	char* buf = (char*)calloc(FileSize + 1, 1);
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 0);
 	ConvertStringSecurityDescriptorToSecurityDescriptorA(buf, SDDL_REVISION_1, &S, (PULONG)PSecurityDescriptorSize);
-	if (*PSecurityDescriptorSize > 65536)
-	{
-		PSECURITY_DESCRIPTOR SALC = (PSECURITY_DESCRIPTOR)realloc(S, *PSecurityDescriptorSize);
-		if (!SALC)
-		{
-			free(buf);
-			free(SecurityName);
-			free(PSecurityDescriptorSize);
-			return STATUS_INSUFFICIENT_RESOURCES;
-		}
-		S = SALC;
-		SALC = NULL;
-		ConvertStringSecurityDescriptorToSecurityDescriptorA(buf, SDDL_REVISION_1, &S, (PULONG)PSecurityDescriptorSize);
-	}
 	free(buf);
 	
 	PSECURITY_DESCRIPTOR NewSecurityDescriptor;
@@ -1390,25 +1380,26 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 		free(SecurityName);
 		return Result;
 	}
+	FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())FspSetSecurityDescriptor);
 	FileSecuritySize = GetSecurityDescriptorLength(NewSecurityDescriptor);
 	
 	*PSecurityDescriptorSize = FileSecuritySize;
-	char* ALC = (char*)calloc(*PSecurityDescriptorSize, 1);
-	if (!ALC)
+	char* Buf = (char*)calloc(*PSecurityDescriptorSize, 1);
+	if (!Buf)
 	{
 		free(PSecurityDescriptorSize);
 		free(SecurityName);
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-	ConvertSecurityDescriptorToStringSecurityDescriptorA(NewSecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, &ALC, PSecurityDescriptorSize);
+	ConvertSecurityDescriptorToStringSecurityDescriptorA(NewSecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, &Buf, PSecurityDescriptorSize);
 	FspDeleteSecurityDescriptor(NewSecurityDescriptor, (NTSTATUS(*)())FspSetSecurityDescriptor);
 
 	trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, *PSecurityDescriptorSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks);
-	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, *PSecurityDescriptorSize, SpFs->DiskSize, SpFs->TableStr, ALC, SpFs->FileInfo, FilenameIndex, 1);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, *PSecurityDescriptorSize, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, FilenameIndex, 1);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 	free(PSecurityDescriptorSize);
 	free(SecurityName);
-	//free(ALC);
+	free(Buf);
 
 	return STATUS_SUCCESS;
 }

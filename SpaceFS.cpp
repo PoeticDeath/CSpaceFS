@@ -86,6 +86,7 @@ void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& l
 		return;
 	}
 	str = alc;
+	alc = NULL;
 	memcpy(str, bytes, len / 2);
 	free(bytes);
 }
@@ -111,6 +112,7 @@ void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long 
 		return;
 	}
 	bytes = alc;
+	alc = NULL;
 	memcpy(bytes, str, len * 2);
 	free(str);
 }
@@ -150,6 +152,7 @@ int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned lo
 		return 1;
 	}
 	table = alc;
+	alc = NULL;
 	tablesize--;
 	table[1] = (tablesize & 0xff000000) >> 24;
 	table[2] = (tablesize & 0x00ff0000) >> 16;
@@ -463,6 +466,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 		return 1;
 	}
 	block = alc1;
+	alc1 = NULL;
 	memcpy(block, s.c_str(), blockstrlen);
 	return 0;
 }
@@ -557,7 +561,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned long long& index, unsigned long long filesize, unsigned long long size)
 {
 	char* alc = NULL;
-	char* alc1 = (char*)calloc(strlen(tablestr) - index, 1);
+	char* alc1 = (char*)calloc(strlen(tablestr) - index + 1, 1);
 	char* alc2 = (char*)calloc(1, 1);
 	if (!alc1)
 	{
@@ -920,6 +924,7 @@ int desimp(char* charmap, char*& tablestr)
 		return 1;
 	}
 	tablestr = alc1;
+	alc1 = NULL;
 	memcpy(tablestr, newtablestr, strlen(newtablestr));
 	free(newtablestr);
 	cleantablestr(charmap, tablestr);
@@ -1065,12 +1070,13 @@ int simp(char* charmap, char*& tablestr)
 		}
 	}
 	free(cblock);
-	char* alc1 = (char*)realloc(tablestr, strlen(newtablestr));
+	char* alc1 = (char*)realloc(tablestr, strlen(newtablestr) + 1);
 	if (!alc1)
 	{
 		return 1;
 	}
 	tablestr = alc1;
+	alc1 = NULL;
 	memcpy(tablestr, newtablestr, strlen(newtablestr));
 	free(newtablestr);
 	cleantablestr(charmap, tablestr);
@@ -1141,6 +1147,7 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 		return 1;
 	}
 	fileinfo = alc;
+	alc = NULL;
 	char* file = (char*)calloc(wcslen(filename) + 1, 1);
 	if (!file)
 	{
