@@ -769,6 +769,9 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	unsigned long long FilenameIndex = 0;
 	unsigned long long FilenameSTRIndex = 0;
+	unsigned long long TempFilenameIndex = 0;
+	unsigned long long TempFilenameSTRIndex = 0;
+
 	PWSTR NewFilename = (PWSTR)calloc(wcslen(NewFileName) + 1, sizeof(wchar_t));
 	if (!NewFilename)
 	{
@@ -788,8 +791,6 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	}
 	memcpy(SecurityName, FileCtx->Path, wcslen(FileCtx->Path) * sizeof(wchar_t));
 	RemoveFirst(SecurityName);
-	FilenameIndex = 0;
-	FilenameSTRIndex = 0;
 	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 
 	PWSTR NewSecurityName = (PWSTR)calloc(wcslen(NewFilename) + 1, sizeof(wchar_t));
@@ -889,8 +890,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 			}
 		}
 		TempFilename[j] = 0;
-		unsigned long long TempFilenameIndex = 0;
-		unsigned long long TempFilenameSTRIndex = 0;
+		
 		memcpy(FileNameParent, TempFilename, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
 		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLenT) && wcslen(FileNameParent) == FileNameLenT)
