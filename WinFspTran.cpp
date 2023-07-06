@@ -489,6 +489,35 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 
 static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, ULONG Flags)
 {
+	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	unsigned long long FilenameIndex = 0;
+	unsigned long long FilenameSTRIndex = 0;
+	unsigned long winattrs = 0;
+
+	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 0);
+	ATTRtoattr(winattrs);
+
+	if (Flags & FspCleanupSetArchiveBit)
+	{
+		if (!(winattrs & FILE_ATTRIBUTE_DIRECTORY))
+		{
+			winattrs |= FILE_ATTRIBUTE_ARCHIVE;
+			attrtoATTR(winattrs);
+			chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
+		}
+	}
+
+	if (Flags & FspCleanupDelete)
+	{
+		deletefile(Index, FilenameIndex, FilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
+		Index = gettablestrindex(FileCtx->Path + 1, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+		getfilenameindex(FileCtx->Path + 1, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+		deletefile(Index, FilenameIndex, FilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
+	}
+
 	return;
 }
 
@@ -759,6 +788,8 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	}
 	memcpy(SecurityName, FileCtx->Path, wcslen(FileCtx->Path) * sizeof(wchar_t));
 	RemoveFirst(SecurityName);
+	FilenameIndex = 0;
+	FilenameSTRIndex = 0;
 	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 
 	PWSTR NewSecurityName = (PWSTR)calloc(wcslen(NewFilename) + 1, sizeof(wchar_t));
@@ -801,9 +832,6 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 		free(FileNameParent);
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-
-	unsigned long long TempFilenameIndex = 0;
-	unsigned long long TempFilenameSTRIndex = 0;
 
 	for (unsigned long long i = 0; i < SpFs->FilenameCount; i++)
 	{
@@ -861,7 +889,8 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 			}
 		}
 		TempFilename[j] = 0;
-
+		unsigned long long TempFilenameIndex = 0;
+		unsigned long long TempFilenameSTRIndex = 0;
 		memcpy(FileNameParent, TempFilename, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
 		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLenT) && wcslen(FileNameParent) == FileNameLenT)

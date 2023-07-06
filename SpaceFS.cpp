@@ -698,6 +698,8 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 {
 	unsigned long long filenamesize = wcslen(filename);
 	unsigned long long tempnamesize = 256;
+	filenameindex = 0;
+	filenamestrindex = 0;
 	wchar_t* file = (wchar_t*)calloc(tempnamesize + 1, sizeof(wchar_t));
 	if (!file)
 	{
@@ -1245,8 +1247,15 @@ int deletefile(unsigned long long index, unsigned long long filenameindex, unsig
 		unsigned long long pindex = getpindex(index, tablestr);
 		memcpy(tablestr + index - pindex, tablestr + index + 1, strlen(tablestr) - index - 1);
 		tablestr[strlen(tablestr) - pindex - 1] = 0;
-		memcpy(fileinfo + filenameindex * 24, fileinfo + (filenameindex + 1) * 24, (filenamecount - filenameindex - 1) * 24);
-		memcpy(fileinfo + (filenamecount - 1) * 24 + filenameindex * 11, fileinfo + filenamecount * 24 + (filenameindex + 1) * 11, (filenamecount - filenameindex - 1) * 11);
+		if (filenamecount > filenameindex)
+		{
+			memcpy(fileinfo + filenameindex * 24, fileinfo + (filenameindex + 1) * 24, (filenamecount - filenameindex - 1) * 24);
+			memcpy(fileinfo + (filenamecount - 1) * 24 + filenameindex * 11, fileinfo + filenamecount * 24 + (filenameindex + 1) * 11, (filenamecount - filenameindex - 1) * 11);
+		}
+		else
+		{
+			memcpy(fileinfo + (filenamecount - 1) * 24, fileinfo + filenamecount * 24, (filenamecount - 1) * 11);
+		}
 		fileinfo[(filenamecount - 1) * 35] = 0;
 	}
 	memcpy(filenames + filenamestrindex - filenamelen - 1, filenames + filenamestrindex + end, strlen(filenames) - filenamestrindex - end + 1);
