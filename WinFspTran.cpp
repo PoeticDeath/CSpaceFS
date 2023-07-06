@@ -124,7 +124,7 @@ static void RemoveStream(PWSTR& FileName)
 	for (; i < wcslen(FileName); i++)
 	{
 		NewFileName[i] = FileName[i];
-		if (FileName[i + 1] == ':')
+		if (FileName[i + 1] == '\0' || FileName[i + 1] == ':')
 		{
 			NewFileName[i + 1] = '\0';
 			break;
