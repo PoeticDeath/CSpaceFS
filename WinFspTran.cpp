@@ -1065,9 +1065,12 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 		{
 			if (wcslen(FileNameSuffix) > 0)
 			{
-				if (!AddDirInfo(SpFs, FileName, FileNameSuffix, Buffer, BufferLength, PBytesTransferred))
+				if (std::wstring(FileNameSuffix).find(L":") == std::string::npos)
 				{
-					return STATUS_SUCCESS;
+					if (!AddDirInfo(SpFs, FileName, FileNameSuffix, Buffer, BufferLength, PBytesTransferred))
+					{
+						return STATUS_SUCCESS;
+					}
 				}
 			}
 		}
