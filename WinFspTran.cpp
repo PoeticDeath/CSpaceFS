@@ -771,7 +771,116 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	RemoveFirst(NewSecurityName);
 	renamefile(SecurityName, NewSecurityName, FilenameSTRIndex, SpFs->Filenames);
 
-	PWSTR ALC = (PWSTR)realloc(FileCtx->Path, (wcslen(NewFilename) + 1) * sizeof(wchar_t));
+	unsigned long long Offset = 0;
+	unsigned long long FileNameLen = wcslen(FileCtx->Path), FileNameLenT = wcslen(FileCtx->Path);
+	PWSTR ALC = NULL;
+	PWSTR TempFilename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!TempFilename)
+	{
+		free(NewFilename);
+		free(SecurityName);
+		free(NewSecurityName);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	PWSTR FileNameParent = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!FileNameParent)
+	{
+		free(NewFilename);
+		free(SecurityName);
+		free(NewSecurityName);
+		free(TempFilename);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	PWSTR FileNameSuffix = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!FileNameSuffix)
+	{
+		free(NewFilename);
+		free(SecurityName);
+		free(NewSecurityName);
+		free(TempFilename);
+		free(FileNameParent);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	unsigned long long TempFilenameIndex = 0;
+	unsigned long long TempFilenameSTRIndex = 0;
+
+	for (unsigned long long i = 0; i < SpFs->FilenameCount; i++)
+	{
+		unsigned long long j = 0;
+		for (;; j++)
+		{
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			{
+				Offset += j + 1;
+				break;
+			}
+			TempFilename[j] = SpFs->Filenames[Offset + j] & 0xff;
+			if (j > FileNameLen - 1)
+			{
+				FileNameLen += 0xff;
+				ALC = (PWSTR)realloc(TempFilename, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(NewFilename);
+					free(SecurityName);
+					free(NewSecurityName);
+					free(TempFilename);
+					free(FileNameParent);
+					free(FileNameSuffix);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				TempFilename = ALC;
+				ALC = NULL;
+				ALC = (PWSTR)realloc(FileNameParent, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(NewFilename);
+					free(SecurityName);
+					free(NewSecurityName);
+					free(TempFilename);
+					free(FileNameParent);
+					free(FileNameSuffix);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				FileNameParent = ALC;
+				ALC = NULL;
+				ALC = (PWSTR)realloc(FileNameSuffix, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(NewFilename);
+					free(SecurityName);
+					free(NewSecurityName);
+					free(TempFilename);
+					free(FileNameParent);
+					free(FileNameSuffix);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				FileNameSuffix = ALC;
+				ALC = NULL;
+			}
+		}
+		TempFilename[j] = 0;
+
+		memcpy(FileNameParent, TempFilename, (j + 1) * sizeof(wchar_t));
+		GetParentName(FileNameParent, FileNameSuffix);
+		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLenT) && wcslen(FileNameParent) == FileNameLenT)
+		{
+			if (wcslen(FileNameSuffix) > 0)
+			{
+				getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
+				renamefile(TempFilename, (PWSTR)(std::wstring(NewFilename) + L"/" + FileNameSuffix).c_str(), TempFilenameSTRIndex, SpFs->Filenames);
+				getfilenameindex(TempFilename + 1, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
+				renamefile(TempFilename + 1, (PWSTR)(std::wstring(NewFilename) + L"/" + FileNameSuffix).c_str() + 1, TempFilenameSTRIndex, SpFs->Filenames);
+			}
+		}
+	}
+
+	free(TempFilename);
+	free(FileNameParent);
+	free(FileNameSuffix);
+
+	ALC = (PWSTR)realloc(FileCtx->Path, (wcslen(NewFilename) + 1) * sizeof(wchar_t));
 	if (!ALC)
 	{
 		free(NewFilename);
@@ -781,6 +890,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	}
 	FileCtx->Path = ALC;
 	ALC = NULL;
+	FileCtx->Path[wcslen(NewFilename)] = 0;
 	memcpy(FileCtx->Path, NewFilename, wcslen(NewFilename) * sizeof(wchar_t));
 	free(NewFilename);
 	free(SecurityName);
