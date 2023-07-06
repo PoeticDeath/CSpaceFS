@@ -621,7 +621,7 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR 
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	unsigned long long Offset = 0;
-	unsigned long long FileNameLen = wcslen(FileCtx->Path);
+	unsigned long long FileNameLen = wcslen(FileCtx->Path), FileNameLenT = wcslen(FileCtx->Path);
 	PWSTR ALC = NULL;
 	PWSTR Filename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
 	if (!Filename)
@@ -692,7 +692,7 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR 
 
 		memcpy(FileNameParent, Filename, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
-		if (!wcscmp(FileNameParent, FileCtx->Path) && wcslen(FileNameParent) == wcslen(FileCtx->Path))
+		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLenT) && wcslen(FileNameParent) == FileNameLenT)
 		{
 			if (wcslen(FileNameSuffix) > 0)
 			{
@@ -834,7 +834,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 	}
 
 	unsigned long long Offset = 0;
-	unsigned long long FileNameLen = wcslen(FileCtx->Path);
+	unsigned long long FileNameLen = wcslen(FileCtx->Path), FileNameLenT = wcslen(FileCtx->Path);
 	PWSTR ALC = NULL;
 	PWSTR FileName = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
 	if (!FileName)
@@ -904,7 +904,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 
 		memcpy(FileNameParent, FileName, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
-		if (!wcscmp(FileNameParent, FileCtx->Path) && wcslen(FileNameParent) == wcslen(FileCtx->Path))
+		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLenT) && wcslen(FileNameParent) == FileNameLenT)
 		{
 			if (wcslen(FileNameSuffix) > 0)
 			{

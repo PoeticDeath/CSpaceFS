@@ -7,8 +7,8 @@
 #include <time.h>
 #include <string>
 
-static inline unsigned upperchar(unsigned c);
-static inline int wcsincmp(const wchar_t* s0, const wchar_t* t0, int n);
+inline unsigned upperchar(unsigned c);
+inline int wcsincmp(const wchar_t* s0, const wchar_t* t0, int n);
 void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& len);
 void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long len);
 void cleantablestr(char* charmap, char*& tablestr);

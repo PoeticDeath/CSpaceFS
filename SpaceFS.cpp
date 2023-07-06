@@ -6,7 +6,7 @@
 #include <string>
 #include "SpaceFS.h"
 
-static inline unsigned upperchar(unsigned c)
+inline unsigned upperchar(unsigned c)
 {
 	/*
 	 * Bit-twiddling upper case char:
@@ -26,7 +26,7 @@ static inline unsigned upperchar(unsigned c)
 	return c & ~(s >> 3);
 }
 
-static inline int wcsincmp(const wchar_t* s0, const wchar_t* t0, int n)
+inline int wcsincmp(const wchar_t* s0, const wchar_t* t0, int n)
 {
 	/* Use fast loop for ASCII and fall back to CompareStringW for general case. */
 	const wchar_t* s = s0;
