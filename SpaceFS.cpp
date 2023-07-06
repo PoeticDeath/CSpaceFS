@@ -1249,7 +1249,7 @@ int deletefile(unsigned long long index, unsigned long long filenameindex, unsig
 		tablestr[strlen(tablestr) - pindex - 1] = 0;
 		if (filenamecount > filenameindex)
 		{
-			memcpy(fileinfo + filenameindex * 24, fileinfo + (filenameindex + 1) * 24, (filenamecount - filenameindex - 1) * 24);
+			memcpy(fileinfo + filenameindex * 24, fileinfo + (filenameindex + 1) * 24, (filenamecount - filenameindex - 1) * 24 + (filenameindex - 1) * 11);
 			memcpy(fileinfo + (filenamecount - 1) * 24 + filenameindex * 11, fileinfo + filenamecount * 24 + (filenameindex + 1) * 11, (filenamecount - filenameindex - 1) * 11);
 		}
 		else
