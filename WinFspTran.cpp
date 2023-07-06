@@ -37,7 +37,7 @@ typedef struct
 	PWSTR Path;
 } SPFS_FILE_CONTEXT;
 
-static void attrtoATTR(unsigned long& attr)
+static VOID attrtoATTR(unsigned long& attr)
 {
 	unsigned long ATTR = 0;
 	if (attr & FILE_ATTRIBUTE_HIDDEN) ATTR |= 32768;
@@ -49,7 +49,7 @@ static void attrtoATTR(unsigned long& attr)
 	attr = ATTR;
 }
 
-static void ATTRtoattr(unsigned long& ATTR)
+static VOID ATTRtoattr(unsigned long& ATTR)
 {
 	unsigned long attr = 0;
 	if (ATTR & 32768) attr |= FILE_ATTRIBUTE_HIDDEN;
@@ -61,7 +61,7 @@ static void ATTRtoattr(unsigned long& ATTR)
 	ATTR = attr;
 }
 
-static void ReplaceBSWFS(PWSTR& FileName)
+static VOID ReplaceBSWFS(PWSTR& FileName)
 {
 	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
 	if (!NewFileName)
@@ -90,7 +90,7 @@ static void ReplaceBSWFS(PWSTR& FileName)
 	free(NewFileName);
 }
 
-static void RemoveFirst(PWSTR& FileName)
+static VOID RemoveFirst(PWSTR& FileName)
 {
 	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
 	if (!NewFileName)
@@ -112,7 +112,7 @@ static void RemoveFirst(PWSTR& FileName)
 	free(NewFileName);
 }
 
-static void RemoveStream(PWSTR& FileName)
+static VOID RemoveStream(PWSTR& FileName)
 {
 	for (unsigned long long i = 0; i < wcslen(FileName); i++)
 	{
@@ -124,7 +124,7 @@ static void RemoveStream(PWSTR& FileName)
 	}
 }
 
-static void GetParentName(PWSTR& FileName, PWSTR& Suffix)
+static VOID GetParentName(PWSTR& FileName, PWSTR& Suffix)
 {
 	unsigned Loc = 0;
 	wchar_t* NewFileName = (wchar_t*)calloc(wcslen(FileName) + 2, sizeof(wchar_t));
@@ -180,6 +180,54 @@ static void GetParentName(PWSTR& FileName, PWSTR& Suffix)
 	NewFileName[Loc + 1] = '\0';
 	memcpy(FileName, NewFileName, (static_cast<unsigned long long>(Loc) + 2) * sizeof(wchar_t));
 	free(NewFileName);
+}
+
+static NTSTATUS FindDuplicate(SPFS* SpFs, PWSTR FileName)
+{
+	unsigned long long Offset = 0;
+	unsigned long long FileNameLen = wcslen(FileName), FileNameLenT = wcslen(FileName);
+	PWSTR ALC = NULL;
+	PWSTR Filename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!Filename)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	for (unsigned long long i = 0; i < SpFs->FilenameCount; i++)
+	{
+		unsigned long long j = 0;
+		for (;; j++)
+		{
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			{
+				Offset += j + 1;
+				break;
+			}
+			Filename[j] = SpFs->Filenames[Offset + j] & 0xff;
+			if (j > FileNameLen - 1)
+			{
+				FileNameLen += 0xff;
+				ALC = (PWSTR)realloc(Filename, (FileNameLen + 1) * sizeof(wchar_t));
+				if (!ALC)
+				{
+					free(Filename);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				Filename = ALC;
+				ALC = NULL;
+			}
+		}
+		Filename[j] = 0;
+
+		if (!wcsincmp(Filename, FileName, FileNameLenT) && wcslen(Filename) == FileNameLenT)
+		{
+			free(Filename);
+			return STATUS_OBJECT_NAME_COLLISION;
+		}
+	}
+
+	free(Filename);
+	return STATUS_SUCCESS;
 }
 
 static NTSTATUS GetFileInfoInternal(SPFS* SpFs, FSP_FSCTL_FILE_INFO* FileInfo, PWSTR FileName)
@@ -338,6 +386,14 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 
 	memcpy(Filename, FileName, wcslen(FileName) * sizeof(wchar_t));
 	ReplaceBSWFS(Filename);
+
+	Result = FindDuplicate(SpFs, Filename);
+	if (Result != STATUS_SUCCESS)
+	{
+		free(Filename);
+		return Result;
+	}
+
 	FileContext = (SPFS_FILE_CONTEXT*)calloc(sizeof(*FileContext), 1);
 	if (!FileContext)
 	{
@@ -506,7 +562,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 
 static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, ULONG Flags)
 {
-	SPFS *SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	unsigned long long FilenameIndex = 0;
@@ -879,6 +935,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	unsigned long long TempIndex = 0;
 	unsigned long long TempFilenameIndex = 0;
 	unsigned long long TempFilenameSTRIndex = 0;
+	NTSTATUS Result = 0;
 
 	PWSTR NewFilename = (PWSTR)calloc(wcslen(NewFileName) + 1, sizeof(wchar_t));
 	if (!NewFilename)
@@ -888,6 +945,14 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 
 	memcpy(NewFilename, NewFileName, wcslen(NewFileName) * sizeof(wchar_t));
 	ReplaceBSWFS(NewFilename);
+
+	Result = FindDuplicate(SpFs, NewFilename);
+	if (Result != STATUS_SUCCESS)
+	{
+		free(NewFilename);
+		return Result;
+	}
+
 	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 	renamefile(FileCtx->Path, NewFilename, FilenameSTRIndex, SpFs->Filenames);
 
@@ -1000,7 +1065,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 			}
 		}
 		TempFilename[j] = 0;
-		
+
 		memcpy(FileNameParent, TempFilename, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
 		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLenT) && wcslen(FileNameParent) == FileNameLenT)
