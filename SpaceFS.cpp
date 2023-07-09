@@ -491,6 +491,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, sectorsize, usedblocks);
 		if (!block)
 		{
+			free(alc1);
 			return 1;
 		}
 		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + 1);
@@ -523,6 +524,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, size % sectorsize, usedblocks);
 		if (!block)
 		{
+			free(alc1);
 			return 1;
 		}
 		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + 1);
