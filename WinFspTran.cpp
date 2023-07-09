@@ -1834,7 +1834,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	}
 	//std::cout << "Found end of table at: " << pos << std::endl;
 	//std::cout << "Table size: " << pos - 5 << std::endl;
-	char* tablestr = (char*)calloc(pos - 5, 1);
+	char* tablestr = (char*)calloc(pos - 5 + 1, 1);
 	memcpy(tablestr, table + 5, pos - 5);
 	decode(dmap, tablestr, pos - 5);
 	//std::cout << "Decoded table: " << std::string(str, (pos - 5) * 2) << std::endl;
@@ -1855,7 +1855,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	}
 	//std::cout << "Found end of filenames at: " << filenamepos << std::endl;
 	//std::cout << "Filenames size: " << filenamepos - pos - 1 << std::endl;
-	char* filenames = (char*)calloc(filenamepos - pos - 1, 1);
+	char* filenames = (char*)calloc(filenamepos - pos, 1);
 	memcpy(filenames, table + pos + 1, filenamepos - pos - 1);
 	unsigned long long filenamecount = 0;
 	for (unsigned long long i = 0; i < filenamepos - pos - 1; i++)

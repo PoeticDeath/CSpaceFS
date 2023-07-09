@@ -93,7 +93,7 @@ void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& l
 
 void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long len)
 {
-	char* str = (char*)calloc(len * 2, 1);
+	char* str = (char*)calloc(len + 1, 2);
 	if (!str)
 	{
 		return;
@@ -105,7 +105,7 @@ void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long 
 		str[i * 2] = d >> 8;
 		str[i * 2 + 1] = d & 0xff;
 	}
-	char* alc = (char*)realloc(bytes, len * 2 + 1);
+	char* alc = (char*)realloc(bytes, (len + 1) * 2);
 	if (!alc)
 	{
 		free(str);
@@ -113,7 +113,7 @@ void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long 
 	}
 	bytes = alc;
 	alc = NULL;
-	memcpy(bytes, str, len * 2);
+	memcpy(bytes, str, len * 2 + 1);
 	free(str);
 }
 
@@ -1804,7 +1804,7 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	}
 	//std::cout << "Found end of table at: " << pos << std::endl;
 	//std::cout << "Table size: " << pos - 5 << std::endl;
-	char* tablestr = (char*)calloc(pos - 5, 1);
+	char* tablestr = (char*)calloc(pos - 5 + 1, 1);
 	memcpy(tablestr, table + 5, pos - 5);
 	decode(dmap, tablestr, pos - 5);
 	//std::cout << "Decoded table: " << std::string(str, (pos - 5) * 2) << std::endl;
@@ -1825,7 +1825,7 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	}
 	//std::cout << "Found end of filenames at: " << filenamepos << std::endl;
 	//std::cout << "Filenames size: " << filenamepos - pos - 1 << std::endl;
-	char* filenames = (char*)calloc(filenamepos - pos - 1, 1);
+	char* filenames = (char*)calloc(filenamepos - pos, 1);
 	memcpy(filenames, table + pos + 1, filenamepos - pos - 1);
 	unsigned long long filenamecount = 0;
 	for (unsigned long long i = 0; i < filenamepos - pos - 1; i++)
