@@ -535,7 +535,9 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 			return 1;
 		}
 		if (o)
+		{
 			alc2[index] = 44;
+		}
 		for (unsigned long long i = 0; i < blockstrlen; i++)
 		{
 			alc2[index + o + i] = block[i];
