@@ -1854,8 +1854,8 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 		filenamepos++;
 	}
 	//std::cout << "Found end of filenames at: " << filenamepos << std::endl;
-	//std::cout << "Filenames size: " << filenamepos - pos - 1 << std::endl;
-	char* filenames = (char*)calloc(filenamepos - pos, 1);
+	//std::cout << "Filenames size: " << filenamepos - pos << std::endl;
+	char* filenames = (char*)calloc(filenamepos - pos + 1, 1);
 	memcpy(filenames, table + pos + 1, filenamepos - pos - 1);
 	unsigned long long filenamecount = 0;
 	for (unsigned long long i = 0; i < filenamepos - pos - 1; i++)
