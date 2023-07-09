@@ -124,7 +124,7 @@ void cleantablestr(char* charmap, char*& tablestr)
 	for (; i < strlen(tablestr); i++)
 	{
 		b = 1;
-		for (unsigned o = 0; o < strlen(charmap); o++)
+		for (unsigned o = 0; o < strlen(charmap) - 1; o++)
 		{
 			if (tablestr[i] == charmap[o])
 			{
