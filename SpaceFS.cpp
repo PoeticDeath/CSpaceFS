@@ -493,7 +493,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		{
 			return 1;
 		}
-		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + strlen(alc1) + 1);
+		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + 1);
 		if (!alc2)
 		{
 			free(alc1);
@@ -528,7 +528,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		{
 			return 1;
 		}
-		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + strlen(alc1) + 1);
+		char* alc2 = (char*)realloc(tablestr, tablestrlen + blockstrlen + o + 1);
 		if (!alc2)
 		{
 			free(alc1);
