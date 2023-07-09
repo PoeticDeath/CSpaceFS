@@ -1166,6 +1166,14 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 			break;
 		}
 	}
+	alc = (char*)realloc(filenames, oldlen + strlen(file) + 2);
+	if (!alc)
+	{
+		free(file);
+		return 1;
+	}
+	filenames = alc;
+	alc = NULL;
 	strcpy_s(filenames + oldlen, strlen(file) + 1, file);
 	filenames[oldlen + strlen(file)] = 255;
 	filenames[oldlen + strlen(file) + 1] = 254;
