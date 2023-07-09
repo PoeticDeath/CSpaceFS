@@ -1169,6 +1169,7 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 	strcpy_s(filenames + oldlen, strlen(file) + 1, file);
 	filenames[oldlen + strlen(file)] = 255;
 	filenames[oldlen + strlen(file) + 1] = 254;
+	free(file);
 	unsigned long long tablelen = 0;
 	for (unsigned long long i = 0; i < strlen(tablestr); i++)
 	{
@@ -1181,7 +1182,6 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 	char* gum = (char*)calloc((filenamecount + 1) * 11, 1);
 	if (!gum)
 	{
-		free(file);
 		return 1;
 	}
 	memcpy(gum, fileinfo + filenamecount * 24, filenamecount * 11);
