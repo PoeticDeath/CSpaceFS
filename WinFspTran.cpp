@@ -1331,6 +1331,7 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PSEC
 	ConvertStringSecurityDescriptorToSecurityDescriptorA(buf, SDDL_REVISION_1, &S, (PULONG)PSecurityDescriptorSize);
 	memcpy(SecurityDescriptor, S, *PSecurityDescriptorSize);
 	FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())FspSetSecurityDescriptor);
+	free(buf);
 
 	return STATUS_SUCCESS;
 }
@@ -1658,6 +1659,31 @@ VOID SpFsDelete(SPFS* SpFs)
 	if (SpFs->MountPoint)
 	{
 		free(SpFs->MountPoint);
+	}
+
+	if (SpFs->hDisk)
+	{
+		CloseHandle(SpFs->hDisk);
+	}
+
+	if (SpFs->Table)
+	{
+		free(SpFs->Table);
+	}
+
+	if (SpFs->TableStr)
+	{
+		free(SpFs->TableStr);
+	}
+
+	if (SpFs->Filenames)
+	{
+		free(SpFs->Filenames);
+	}
+
+	if (SpFs->FileInfo)
+	{
+		free(SpFs->FileInfo);
 	}
 
 	free(SpFs);
