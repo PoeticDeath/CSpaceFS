@@ -505,6 +505,12 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 	memcpy(Filename, FileName, wcslen(FileName) * sizeof(wchar_t));
 	ReplaceBSWFS(Filename);
 
+	if (NT_SUCCESS(FindDuplicate(SpFs, Filename)))
+	{
+		free(Filename);
+		return STATUS_OBJECT_NAME_NOT_FOUND;
+	}
+
 	if (PFileAttributes)
 	{
 		getfilenameindex(Filename, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
@@ -729,7 +735,6 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 	unsigned long long TempIndex = 0;
 	unsigned long long TempFilenameIndex = 0;
 	unsigned long long TempFilenameSTRIndex = 0;
-	NTSTATUS Result = 0;
 
 	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
@@ -829,9 +834,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 	chtime(SpFs->FileInfo, FilenameIndex, LTime, 5);
 
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
-	Result = GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
-
-	return Result;
+	return GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
 }
 
 static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, ULONG Flags)
@@ -1451,7 +1454,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	free(NewSecurityName);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 
-	return STATUS_SUCCESS;
+	return Result;
 }
 
 static NTSTATUS GetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T* PSecurityDescriptorSize)
@@ -1559,7 +1562,7 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 	free(SecurityName);
 	free(Buf);
 
-	return STATUS_SUCCESS;
+	return Result;
 }
 
 static BOOLEAN AddDirInfo(SPFS* SpFs, PWSTR Name, PWSTR FileName, PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
