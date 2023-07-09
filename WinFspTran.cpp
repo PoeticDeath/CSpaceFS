@@ -37,6 +37,152 @@ typedef struct
 	PWSTR Path;
 } SPFS_FILE_CONTEXT;
 
+DWORD SetSecurityDescriptor(PSECURITY_DESCRIPTOR pInDescriptor, SECURITY_INFORMATION iSecInfo, PSECURITY_DESCRIPTOR pModDescriptor, PSECURITY_DESCRIPTOR* ppOutDescriptor) { // Thank you PuckyBoy for this code.
+	DWORD iDescriptorSize = 0;
+	DWORD iDaclSize = 0;
+	DWORD iSaclSize = 0;
+	DWORD iOwnerSize = 0;
+	DWORD iGroupSize = 0;
+
+	if (iSecInfo & (ATTRIBUTE_SECURITY_INFORMATION | BACKUP_SECURITY_INFORMATION | LABEL_SECURITY_INFORMATION | SCOPE_SECURITY_INFORMATION)) return ERROR_INVALID_SECURITY_DESCR; //Don't know how to handle these flags
+
+	if (!MakeAbsoluteSD(pInDescriptor, NULL, &iDescriptorSize, NULL, &iDaclSize, NULL, &iSaclSize, NULL, &iOwnerSize, NULL, &iGroupSize) && GetLastError() != ERROR_INSUFFICIENT_BUFFER) return GetLastError();
+
+	DWORD iSize = iDescriptorSize + iDaclSize + iSaclSize + iOwnerSize + iGroupSize;
+
+	PUCHAR pBuff = (PUCHAR)malloc(iSize);
+	if (pBuff == NULL) return ERROR_OUTOFMEMORY;
+
+	PSECURITY_DESCRIPTOR pAbsDescriptor = (PSECURITY_DESCRIPTOR)pBuff;
+	PACL pAbsDacl = (PACL)(pBuff + iDescriptorSize);
+	PACL pAbsSacl = (PACL)(pBuff + iDescriptorSize + iDaclSize);
+	PSID pAbsOwner = (PSID)(pBuff + iDescriptorSize + iDaclSize + iSaclSize);
+	PSID pAbsGroup = (PSID)(pBuff + iDescriptorSize + iDaclSize + iSaclSize + iOwnerSize);
+
+	if (!MakeAbsoluteSD(pInDescriptor, pAbsDescriptor, &iDescriptorSize, pAbsDacl, &iDaclSize, pAbsSacl, &iSaclSize, pAbsOwner, &iOwnerSize, pAbsGroup, &iGroupSize)) {
+		free(pBuff);
+		return GetLastError();
+	}
+
+	if (iSecInfo & DACL_SECURITY_INFORMATION) {
+		BOOL bPresent;
+		PACL pAcl;
+		BOOL bDefault;
+
+		if (!GetSecurityDescriptorDacl(pModDescriptor, &bPresent, &pAcl, &bDefault)) {
+			free(pBuff);
+			return GetLastError();
+		}
+
+		if (bPresent && pAcl && !IsValidAcl(pAcl)) {
+			free(pBuff);
+			return ERROR_INVALID_ACL;
+		}
+
+		if (!SetSecurityDescriptorDacl(pAbsDescriptor, bPresent, pAcl, bDefault)) {
+			free(pBuff);
+			return GetLastError();
+		}
+	}
+
+	if (iSecInfo & SACL_SECURITY_INFORMATION) {
+		BOOL bPresent;
+		PACL pAcl;
+		BOOL bDefault;
+
+		if (!GetSecurityDescriptorSacl(pModDescriptor, &bPresent, &pAcl, &bDefault)) {
+			free(pBuff);
+			return GetLastError();
+		}
+
+		if (bPresent && pAcl && !IsValidAcl(pAcl)) {
+			free(pBuff);
+			return ERROR_INVALID_ACL;
+		}
+
+		if (!SetSecurityDescriptorSacl(pAbsDescriptor, bPresent, pAcl, bDefault)) {
+			free(pBuff);
+			return GetLastError();
+		}
+	}
+
+	if (iSecInfo & OWNER_SECURITY_INFORMATION) {
+		PSID pSid;
+		BOOL bDefault;
+
+		if (!GetSecurityDescriptorOwner(pModDescriptor, &pSid, &bDefault)) {
+			free(pBuff);
+			return GetLastError();
+		}
+
+		if (pSid && !IsValidSid(pSid)) {
+			free(pBuff);
+			return ERROR_INVALID_SID;
+		}
+
+		if (!SetSecurityDescriptorOwner(pAbsDescriptor, pSid, bDefault)) {
+			free(pBuff);
+			return GetLastError();
+		}
+	}
+
+	if (iSecInfo & GROUP_SECURITY_INFORMATION) {
+		PSID pSid;
+		BOOL bDefault;
+
+		if (!GetSecurityDescriptorGroup(pModDescriptor, &pSid, &bDefault)) {
+			free(pBuff);
+			return GetLastError();
+		}
+
+		if (pSid && !IsValidSid(pSid)) {
+			free(pBuff);
+			return ERROR_INVALID_SID;
+		}
+
+		if (!SetSecurityDescriptorGroup(pAbsDescriptor, pSid, bDefault)) {
+			free(pBuff);
+			return GetLastError();
+		}
+	}
+
+	SECURITY_DESCRIPTOR_CONTROL iMaskControl = 0;
+	SECURITY_DESCRIPTOR_CONTROL iControl = 0;
+
+	if (iSecInfo & (PROTECTED_DACL_SECURITY_INFORMATION | UNPROTECTED_DACL_SECURITY_INFORMATION)) {
+		iMaskControl |= SE_DACL_PROTECTED;
+		iControl |= (iSecInfo & PROTECTED_DACL_SECURITY_INFORMATION) ? SE_DACL_PROTECTED : 0;
+	}
+
+	if (iSecInfo & (PROTECTED_SACL_SECURITY_INFORMATION | UNPROTECTED_SACL_SECURITY_INFORMATION)) {
+		iMaskControl |= SE_SACL_PROTECTED;
+		iControl |= (iSecInfo & PROTECTED_SACL_SECURITY_INFORMATION) ? SE_SACL_PROTECTED : 0;
+	}
+
+	if (iMaskControl && !SetSecurityDescriptorControl(pAbsDescriptor, iMaskControl, iControl)) {
+		free(pBuff);
+		return GetLastError();
+	}
+
+	iSize = GetSecurityDescriptorLength(pAbsDescriptor);
+
+	PSECURITY_DESCRIPTOR pOutDescriptor = (PSECURITY_DESCRIPTOR)malloc(iSize);
+	if (pOutDescriptor == NULL) {
+		free(pBuff);
+		return ERROR_OUTOFMEMORY;
+	}
+
+	if (!MakeSelfRelativeSD(pAbsDescriptor, pOutDescriptor, &iSize)) {
+		free(pOutDescriptor);
+		free(pBuff);
+		return GetLastError();
+	}
+
+	free(pBuff);
+	*ppOutDescriptor = pOutDescriptor;
+	return ERROR_SUCCESS;
+}
+
 static VOID attrtoATTR(unsigned long& attr)
 {
 	unsigned long ATTR = 0;
@@ -1374,7 +1520,7 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 	SIZE_T FileSecuritySize;
 	NTSTATUS Result;
 
-	Result = FspSetSecurityDescriptor(S, SecurityInformation, ModificationDescriptor, &NewSecurityDescriptor);
+	Result = SetSecurityDescriptor(S, SecurityInformation, ModificationDescriptor, &NewSecurityDescriptor);
 	if (!NT_SUCCESS(Result))
 	{
 		free(PSecurityDescriptorSize);
