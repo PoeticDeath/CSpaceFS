@@ -518,6 +518,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 		PWSTR SecurityName = (PWSTR)calloc(wcslen(Filename) + 1, sizeof(wchar_t));
 		if (!SecurityName)
 		{
+			free(Filename);
 			return STATUS_INSUFFICIENT_RESOURCES;
 		}
 		memcpy(SecurityName, Filename, wcslen(Filename) * sizeof(wchar_t));
@@ -532,6 +533,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 		if (*PSecurityDescriptorSize < FileSize)
 		{
 			*PSecurityDescriptorSize = FileSize;
+			free(Filename);
 			return STATUS_BUFFER_OVERFLOW;
 		}
 		char* buf = (char*)calloc(FileSize + 1, 1);
