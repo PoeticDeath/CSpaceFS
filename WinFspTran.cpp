@@ -555,7 +555,6 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess, UINT32 FileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, UINT64 AllocationSize, PVOID* PFileContext, FSP_FSCTL_FILE_INFO* FileInfo)
 {
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
-	ULONG CreateFlags;
 	SPFS_FILE_CONTEXT* FileContext;
 	NTSTATUS Result = 0;
 	PWSTR Filename = (PWSTR)calloc(wcslen(FileName) + 1, sizeof(wchar_t));
@@ -580,12 +579,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 	memset(FileContext, 0, sizeof(*FileContext));
-
-	CreateFlags = FILE_FLAG_BACKUP_SEMANTICS;
-	if (CreateOptions & FILE_DELETE_ON_CLOSE)
-	{
-		CreateFlags |= FILE_FLAG_DELETE_ON_CLOSE;
-	}
 
 	FileContext->Path = Filename;
 	*PFileContext = FileContext;
@@ -706,7 +699,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateOptions, UINT32 GrantedAccess, PVOID* PFileContext, FSP_FSCTL_FILE_INFO* FileInfo)
 {
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
-	ULONG CreateFlags;
 	SPFS_FILE_CONTEXT* FileContext = (SPFS_FILE_CONTEXT*)calloc(sizeof(*FileContext), 1);
 	if (!FileContext)
 	{
@@ -721,12 +713,6 @@ static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateO
 
 	memcpy(Filename, FileName, wcslen(FileName) * sizeof(wchar_t));
 	ReplaceBSWFS(Filename);
-
-	CreateFlags = FILE_FLAG_BACKUP_SEMANTICS;
-	if (CreateOptions & FILE_DELETE_ON_CLOSE)
-	{
-		CreateFlags |= FILE_FLAG_DELETE_ON_CLOSE;
-	}
 
 	FileContext->Path = Filename;
 	*PFileContext = FileContext;
