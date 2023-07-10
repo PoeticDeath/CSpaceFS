@@ -435,8 +435,8 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 			{
 				if (!partlist[std::to_string(i)][o / 64])
 				{
-					bytecount += min(blocksize - bytecount, 64);
 					o += min(blocksize - bytecount, 64);
+					bytecount += min(blocksize - bytecount, 64);
 				}
 				else if (!(partlist[std::to_string(i)][o / 64] & static_cast<unsigned long long>(1) << o % 64))
 				{
