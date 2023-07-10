@@ -430,19 +430,25 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 			}
 			while (bytecount < blocksize)
 			{
-				if (!(partlist[std::to_string(i)][o / 64] & static_cast<unsigned long long>(1) << o % 64))
+				if (!partlist[std::to_string(i)][o / 64])
+				{
+					bytecount += min(blocksize - bytecount, 64);
+					o += min(blocksize - bytecount, 64);
+				}
+				else if (!(partlist[std::to_string(i)][o / 64] & static_cast<unsigned long long>(1) << o % 64))
 				{
 					bytecount++;
+					o++;
 				}
 				else
 				{
 					bytecount = 0;
+					o++;
 				}
 				if (blocksize > sectorsize - o)
 				{
 					break;
 				}
-				o++;
 			}
 			if (bytecount == blocksize)
 			{
@@ -491,8 +497,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 	}
 	for (unsigned long long p = 0; p < size / sectorsize; p++)
 	{
-		findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, sectorsize, usedblocks);
-		if (!block)
+		if (findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, sectorsize, usedblocks))
 		{
 			free(alc1);
 			return 1;
@@ -524,8 +529,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 	}
 	if (size % sectorsize)
 	{
-		findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, size % sectorsize, usedblocks);
-		if (!block)
+		if (findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, size % sectorsize, usedblocks))
 		{
 			free(alc1);
 			return 1;
