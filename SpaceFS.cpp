@@ -125,12 +125,14 @@ void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long 
 
 void cleantablestr(char* charmap, char*& tablestr)
 {
+	unsigned long long tablestrlen = strlen(tablestr);
 	unsigned long long i = 0;
+	unsigned charmaplen = strlen(charmap);
 	unsigned b = 0;
-	for (; i < strlen(tablestr); i++)
+	for (; i < tablestrlen; i++)
 	{
 		b = 1;
-		for (unsigned o = 0; o < strlen(charmap) - 1; o++)
+		for (unsigned o = 0; o < charmaplen - 1; o++)
 		{
 			if (tablestr[i] == charmap[o])
 			{
@@ -350,7 +352,8 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 {
 	usedblocks = 0;
 	unsigned long long tablelen = 0;
-	for (unsigned long long i = 0; i < strlen(tablestr); i++)
+	unsigned long long tablestrlen = strlen(tablestr);
+	for (unsigned long long i = 0; i < tablestrlen; i++)
 	{
 		if ((tablestr[i] & 0xff) == 46)
 		{
@@ -495,6 +498,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 	{
 		alc1[i] = tablestr[index + i];
 	}
+	unsigned long long alc1len = strlen(alc1);
 	for (unsigned long long p = 0; p < size / sectorsize; p++)
 	{
 		if (findblock(sectorsize, disksize, tablesize, tablestr, block, blockstrlen, sectorsize, usedblocks))
@@ -516,7 +520,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		{
 			alc2[index + o + i] = block[i];
 		}
-		for (unsigned long long i = 0; i < strlen(alc1); i++)
+		for (unsigned long long i = 0; i < alc1len; i++)
 		{
 			alc2[index + o + blockstrlen + i] = alc1[i];
 		}
@@ -548,7 +552,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		{
 			alc2[index + o + i] = block[i];
 		}
-		for (unsigned long long i = 0; i < strlen(alc1); i++)
+		for (unsigned long long i = 0; i < alc1len; i++)
 		{
 			alc2[index + blockstrlen + o + i] = alc1[i];
 		}
@@ -564,19 +568,24 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 
 int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned long long& index, unsigned long long filesize, unsigned long long size)
 {
+	unsigned long long tablestrlen = 0;
+	unsigned long long blockstrlen = 0;
+	unsigned long long alc2len = 0;
 	char* alc = NULL;
-	char* alc1 = (char*)calloc(strlen(tablestr) - index, 1);
+	char* alc1 = (char*)calloc(tablestrlen - index, 1);
 	char* alc2 = (char*)calloc(1, 1);
 	if (!alc1)
 	{
 		return 1;
 	}
-	for (unsigned long long i = 0; i < strlen(tablestr) - index; i++)
+	for (unsigned long long i = 0; i < tablestrlen - index; i++)
 	{
 		alc1[i] = tablestr[index + i];
 	}
+	unsigned long long alc1len = strlen(alc1);
 	if (size % sectorsize)
 	{
+		tablestrlen = strlen(tablestr);
 		unsigned long long pindex = getpindex(index, tablestr);
 		alc = (char*)realloc(alc2, pindex + 1);
 		if (!alc)
@@ -605,37 +614,41 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 		}
 		else if (!(filesize % sectorsize))
 		{ // Realloc full block as part block
-			unsigned long long alc2len = strlen(alc2);
+			alc2len = strlen(alc2);
 			char part[4] = ";0;";
 			for (unsigned long long i = 0; i < 3; i++)
 			{
 				alc2[alc2len + i] = part[i];
 			}
-			for (unsigned long long i = 0; i < strlen(std::to_string(sectorsize - size % sectorsize).c_str()); i++)
+			blockstrlen = strlen(std::to_string(sectorsize - size % sectorsize).c_str());
+			for (unsigned long long i = 0; i < blockstrlen; i++)
 			{
 				alc2[alc2len + 3 + i] = std::to_string(sectorsize - size % sectorsize).c_str()[i];
 			}
-			alc2[alc2len + 3 + strlen(std::to_string(sectorsize - size % sectorsize).c_str())] = 0;
+			alc2[alc2len + 3 + blockstrlen] = 0;
 		}
 		else
 		{ // Realloc part block as smaller part block
 			unsigned long long alc2partlen = 0;
-			for (; alc2partlen < strlen(alc2); alc2partlen++)
+			alc2len = strlen(alc2);
+			for (; alc2partlen < alc2len; alc2partlen++)
 			{
-				if ((alc2[strlen(alc2) - alc2partlen] & 0xff) == 59)
+				if ((alc2[alc2len - alc2partlen] & 0xff) == 59)
 				{
 					break;
 				}
 			}
-			unsigned long alc2part = std::strtoul(alc2 + strlen(alc2) - alc2partlen + 1, 0, 10);
-			for (unsigned long long i = 0; i < strlen(std::to_string(alc2part - size % sectorsize).c_str()); i++)
+			unsigned long alc2part = std::strtoul(alc2 + alc2len - alc2partlen + 1, 0, 10);
+			blockstrlen = strlen(std::to_string(alc2part - size % sectorsize).c_str());
+			for (unsigned long long i = 0; i < blockstrlen; i++)
 			{
-				alc2[strlen(alc2) - alc2partlen + 1 + i] = std::to_string(alc2part - size % sectorsize)[i];
+				alc2[alc2len - alc2partlen + 1 + i] = std::to_string(alc2part - size % sectorsize)[i];
 			}
-			alc2[strlen(alc2) - alc2partlen + strlen(std::to_string(alc2part - size % sectorsize).c_str()) + 1] = 0;
+			alc2[alc2len - alc2partlen + blockstrlen + 1] = 0;
 		}
 		unsigned long long off = 0;
-		for (; off < strlen(alc2); off++)
+		alc2len = strlen(alc2);
+		for (; off < alc2len; off++)
 		{
 			if (!(alc2[off] & 0xff))
 			{
@@ -643,7 +656,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 			}
 			tablestr[index - pindex + off] = alc2[off];
 		}
-		for (unsigned long long i = 0; i < strlen(alc1); i++)
+		for (unsigned long long i = 0; i < alc1len; i++)
 		{
 			tablestr[index - pindex + off + i] = alc1[i];
 		}
@@ -653,6 +666,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 	}
 	for (unsigned long long p = 0; p < size / sectorsize; p++)
 	{ // Dealloc entire block out of alc2
+		tablestrlen = strlen(tablestr);
 		unsigned long long pindex = getpindex(index, tablestr);
 		alc = (char*)realloc(alc2, pindex + 1);
 		if (!alc)
@@ -663,7 +677,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 		}
 		alc2 = alc;
 		alc = NULL;
-		for (unsigned long long i = 0; i < strlen(tablestr) - index; i++)
+		for (unsigned long long i = 0; i < tablestrlen - index; i++)
 		{
 			alc1[i] = tablestr[index + i];
 		}
@@ -681,7 +695,8 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 			alc2[pindex - i] = 0;
 		}
 		unsigned long long off = 0;
-		for (; off < strlen(alc2); off++)
+		alc2len = strlen(alc2);
+		for (; off < alc2len; off++)
 		{
 			if (!(alc2[off] & 0xff))
 			{
@@ -689,7 +704,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 			}
 			tablestr[index - pindex + off] = alc2[off];
 		}
-		for (unsigned long long i = 0; i < strlen(alc1); i++)
+		for (unsigned long long i = 0; i < alc1len; i++)
 		{
 			tablestr[index - pindex + off + i] = alc1[i];
 		}
@@ -756,7 +771,8 @@ unsigned long long gettablestrindex(PWSTR filename, char* filenames, char* table
 	unsigned long long filenamestrindex = 0;
 	getfilenameindex(filename, filenames, filenamecount, filenameindex, filenamestrindex);
 	unsigned long long index = 0;
-	for (unsigned long long i = 0; i < strlen(tablestr); i++)
+	unsigned long long tablestrlen = strlen(tablestr);
+	for (unsigned long long i = 0; i < tablestrlen; i++)
 	{
 		if ((tablestr[i] & 0xff) == 46)
 		{
@@ -771,13 +787,14 @@ unsigned long long gettablestrindex(PWSTR filename, char* filenames, char* table
 
 int desimp(char* charmap, char*& tablestr)
 {
-	char* newtablestr = (char*)calloc(strlen(tablestr) + 1, 1);
+	unsigned long long tablestrlen = strlen(tablestr);
+	char* newtablestr = (char*)calloc(tablestrlen + 1, 1);
 	if (!newtablestr)
 		return 1;
 	unsigned long long newloc = 0;
 	unsigned long long tablelen = 0;
-	unsigned long long newtablelen = strlen(tablestr);
-	for (unsigned long long i = 0; i < strlen(tablestr); i++)
+	unsigned long long newtablelen = tablestrlen;
+	for (unsigned long long i = 0; i < tablestrlen; i++)
 	{
 		if ((tablestr[i] & 0xff) == 46)
 		{
@@ -922,7 +939,8 @@ int desimp(char* charmap, char*& tablestr)
 		}
 	}
 	free(cblock);
-	char* alc1 = (char*)realloc(tablestr, strlen(newtablestr) + 1);
+	unsigned long long newtablestrlen = strlen(newtablestr);
+	char* alc1 = (char*)realloc(tablestr, newtablestrlen + 1);
 	if (!alc1)
 	{
 		free(newtablestr);
@@ -930,7 +948,7 @@ int desimp(char* charmap, char*& tablestr)
 	}
 	tablestr = alc1;
 	alc1 = NULL;
-	memcpy(tablestr, newtablestr, strlen(newtablestr));
+	memcpy(tablestr, newtablestr, newtablestrlen);
 	free(newtablestr);
 	cleantablestr(charmap, tablestr);
 	return 0;
@@ -938,10 +956,11 @@ int desimp(char* charmap, char*& tablestr)
 
 int simp(char* charmap, char*& tablestr)
 {
-	char* newtablestr = (char*)calloc(strlen(tablestr) + 1, 1);
+	unsigned long long tablestrlen = strlen(tablestr);
+	char* newtablestr = (char*)calloc(tablestrlen + 1, 1);
 	unsigned long long newloc = 0;
 	unsigned long long tablelen = 0;
-	for (unsigned long long i = 0; i < strlen(tablestr); i++)
+	for (unsigned long long i = 0; i < tablestrlen; i++)
 	{
 		if ((tablestr[i] & 0xff) == 46)
 		{
@@ -1076,14 +1095,15 @@ int simp(char* charmap, char*& tablestr)
 		}
 	}
 	free(cblock);
-	char* alc1 = (char*)realloc(tablestr, strlen(newtablestr) + 1);
+	unsigned long long newtablestrlen = strlen(newtablestr);
+	char* alc1 = (char*)realloc(tablestr, newtablestrlen + 1);
 	if (!alc1)
 	{
 		return 1;
 	}
 	tablestr = alc1;
 	alc1 = NULL;
-	memcpy(tablestr, newtablestr, strlen(newtablestr));
+	memcpy(tablestr, newtablestr, newtablestrlen);
 	free(newtablestr);
 	cleantablestr(charmap, tablestr);
 	return 0;
@@ -1094,7 +1114,8 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 	_LARGE_INTEGER seek = { 0 };
 	SetFilePointerEx(hDisk, seek, NULL, 0);
 	unsigned long long tablelen = 0;
-	for (unsigned long long i = 0; i < strlen(tablestr); i++)
+	unsigned long long tablestrlen = strlen(tablestr);
+	for (unsigned long long i = 0; i < tablestrlen; i++)
 	{
 		if ((tablestr[i] & 0xff) == 46)
 		{
@@ -1104,7 +1125,8 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 	encode(emap, tablestr, tablelen);
 	tablelen /= 2;
 	unsigned long long filenamesizes = 0;
-	for (unsigned long long i = 0; i < strlen(filenames); i++)
+	unsigned long long filenamestrlen = strlen(filenames);
+	for (unsigned long long i = 0; i < filenamestrlen; i++)
 	{
 		if ((filenames[i] & 0xff) == 255)
 		{
@@ -1147,6 +1169,8 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 
 int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned long mode, unsigned long winattrs, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char* charmap, char*& tablestr)
 {
+	unsigned long long filenamelen = wcslen(filename);
+	unsigned long long filenameslen = strlen(filenames);
 	char* alc = (char*)realloc(fileinfo, (filenamecount + 1) * 35);
 	if (!alc)
 	{
@@ -1154,17 +1178,18 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 	}
 	fileinfo = alc;
 	alc = NULL;
-	char* file = (char*)calloc(wcslen(filename) + 1, 1);
+	char* file = (char*)calloc(filenamelen + 1, 1);
 	if (!file)
 	{
 		return 1;
 	}
-	for (unsigned i = 0; i < wcslen(filename); i++)
+	for (unsigned i = 0; i < filenamelen; i++)
 	{
 		file[i] = filename[i] & 0xff;
 	}
+	unsigned long long filestrlen = strlen(file);
 	unsigned long long oldlen = 0;
-	for (unsigned long long i = 0; i < strlen(filenames); i++)
+	for (unsigned long long i = 0; i < filenameslen; i++)
 	{
 		if ((filenames[i] & 0xff) == 255)
 		{
@@ -1175,7 +1200,7 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 			break;
 		}
 	}
-	alc = (char*)realloc(filenames, oldlen + strlen(file) + 2);
+	alc = (char*)realloc(filenames, oldlen + filestrlen + 2);
 	if (!alc)
 	{
 		free(file);
@@ -1183,12 +1208,13 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 	}
 	filenames = alc;
 	alc = NULL;
-	strcpy_s(filenames + oldlen, strlen(file) + 1, file);
-	filenames[oldlen + strlen(file)] = 255;
-	filenames[oldlen + strlen(file) + 1] = 254;
+	strcpy_s(filenames + oldlen, filestrlen + 1, file);
+	filenames[oldlen + filestrlen] = 255;
+	filenames[oldlen + filestrlen + 1] = 254;
 	free(file);
 	unsigned long long tablelen = 0;
-	for (unsigned long long i = 0; i < strlen(tablestr); i++)
+	unsigned long long tablestrlen = strlen(tablestr);
+	for (unsigned long long i = 0; i < tablestrlen; i++)
 	{
 		if ((tablestr[i] & 0xff) == 46)
 		{
@@ -1247,6 +1273,8 @@ int deletefile(unsigned long long index, unsigned long long filenameindex, unsig
 	unsigned start = 0;
 	unsigned filenamelen = 0;
 	unsigned long long end = 0;
+	unsigned long long tablestrlen = strlen(tablestr);
+	unsigned long long filenameslen = strlen(filenames);
 	for (unsigned long long i = 0; i < filenamestrindex; i++)
 	{
 		start = filenames[filenamestrindex - i - 1] & 0xff;
@@ -1258,7 +1286,7 @@ int deletefile(unsigned long long index, unsigned long long filenameindex, unsig
 	}
 	if (start != 42)
 	{
-		for (; end < strlen(filenames); end++)
+		for (; end < filenameslen; end++)
 		{
 			if ((filenames[filenamestrindex + end] & 0xff) == 255)
 			{
@@ -1266,8 +1294,8 @@ int deletefile(unsigned long long index, unsigned long long filenameindex, unsig
 			}
 		}
 		unsigned long long pindex = getpindex(index, tablestr);
-		memcpy(tablestr + index - pindex, tablestr + index + 1, strlen(tablestr) - index - 1);
-		tablestr[strlen(tablestr) - pindex - 1] = 0;
+		memcpy(tablestr + index - pindex, tablestr + index + 1, tablestrlen - index - 1);
+		tablestr[tablestrlen - pindex - 1] = 0;
 		if (filenamecount > filenameindex)
 		{
 			memcpy(fileinfo + filenameindex * 24, fileinfo + (filenameindex + 1) * 24, (filenamecount - filenameindex - 1) * 24 + (filenameindex - 1) * 11);
@@ -1279,7 +1307,7 @@ int deletefile(unsigned long long index, unsigned long long filenameindex, unsig
 		}
 		fileinfo[(filenamecount - 1) * 35] = 0;
 	}
-	memcpy(filenames + filenamestrindex - filenamelen - 1, filenames + filenamestrindex + end, strlen(filenames) - filenamestrindex - end + 1);
+	memcpy(filenames + filenamestrindex - filenamelen - 1, filenames + filenamestrindex + end, filenameslen - filenamestrindex - end + 1);
 	filenamecount--;
 	return 0;
 }
@@ -1287,29 +1315,34 @@ int deletefile(unsigned long long index, unsigned long long filenameindex, unsig
 int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenamestrindex, char*& filenames)
 {
 	unsigned long long oldlen = strlen(filenames);
-	char* coldfilename = (char*)calloc(wcslen(oldfilename) + 1, 1);
-	char* cnewfilename = (char*)calloc(wcslen(newfilename) + 1, 1);
+	unsigned long long oldfilenamelen = wcslen(oldfilename);
+	unsigned long long newfilenamelen = wcslen(newfilename);
+	char* coldfilename = (char*)calloc(oldfilenamelen + 1, 1);
+	char* cnewfilename = (char*)calloc(newfilenamelen + 1, 1);
 	char* files = (char*)calloc(oldlen - filenamestrindex + 1, 1);
-	for (unsigned long long i = 0; i < wcslen(oldfilename); i++)
+	for (unsigned long long i = 0; i < oldfilenamelen; i++)
 	{
 		coldfilename[i] = oldfilename[i] & 0xff;
 	}
-	for (unsigned long long i = 0; i < wcslen(newfilename); i++)
+	for (unsigned long long i = 0; i < newfilenamelen; i++)
 	{
 		cnewfilename[i] = newfilename[i] & 0xff;
 	}
+	unsigned long long coldfilenamelen = strlen(coldfilename);
+	unsigned long long cnewfilenamelen = strlen(cnewfilename);
 	memcpy(files, filenames + filenamestrindex, oldlen - filenamestrindex);
-	memcpy(filenames + filenamestrindex - strlen(coldfilename), cnewfilename, strlen(cnewfilename));
+	memcpy(filenames + filenamestrindex - coldfilenamelen, cnewfilename, cnewfilenamelen);
 	unsigned long long afterlen = 0;
-	for (; afterlen < strlen(files); afterlen++)
+	unsigned long long fileslen = strlen(files);
+	for (; afterlen < fileslen; afterlen++)
 	{
 		if ((files[afterlen] & 0xff) == 254)
 		{
 			break;
 		}
 	}
-	memcpy(filenames + filenamestrindex - strlen(coldfilename) + strlen(cnewfilename), files, afterlen + 1);
-	filenamestrindex -= strlen(coldfilename) - strlen(cnewfilename);
+	memcpy(filenames + filenamestrindex - coldfilenamelen + cnewfilenamelen, files, afterlen + 1);
+	filenamestrindex -= coldfilenamelen - cnewfilenamelen;
 	free(coldfilename);
 	free(cnewfilename);
 	free(files);
