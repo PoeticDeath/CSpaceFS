@@ -6,6 +6,12 @@
 #include <string>
 #include "SpaceFS.h"
 
+unsigned long Sectorsize = 512;
+struct SectorSize
+{
+	unsigned long unused = Sectorsize;
+};
+
 inline unsigned upperchar(unsigned c)
 {
 	/*
@@ -289,7 +295,7 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 	return 0;
 }
 
-void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std::string str0, std::string str1, std::string str2, std::string rstr, std::map<std::string, std::map<unsigned long, unsigned long long>>& partlist, std::map<std::string, unsigned long>& list, unsigned long long& usedblocks)
+void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std::string str0, std::string str1, std::string str2, std::string rstr, std::map<std::string, std::map<unsigned long, unsigned long long>>& partlist, std::map<std::string, SectorSize>& list, unsigned long long& usedblocks)
 {
 	if (str0 == "")
 	{
@@ -299,7 +305,7 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 	{
 		if (!step)
 		{
-			list[str0] = 0;
+			list[str0].unused = 0;
 			usedblocks++;
 			//std::cout << str0 << std::endl;
 		}
@@ -308,7 +314,7 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 	{
 		for (unsigned long long i = std::strtoull(rstr.c_str(), 0, 10); i < std::strtoull(str0.c_str(), 0, 10) + 1; i++)
 		{
-			list[std::to_string(i)] = 0;
+			list[std::to_string(i)].unused = 0;
 			usedblocks++;
 		}
 		//std::cout << rstr << "-" << str0 << ",";
@@ -320,21 +326,21 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 			if (i / 64 < std::strtoul(str2.c_str(), 0, 10) / 64)
 			{
 				partlist[str0][i / 64] |= 0xffffffffffffffff << i % 64;
-				if (list[str0] == sectorsize)
+				if (list[str0].unused == sectorsize)
 				{
 					usedblocks++;
 				}
-				list[str0] -= 64 - i % 64;
+				list[str0].unused -= 64 - i % 64;
 				i += 63 - i % 64;
 			}
 			else
 			{
 				partlist[str0][i / 64] |= static_cast<unsigned long long>(1) << i % 64;
-				if (list[str0] == sectorsize)
+				if (list[str0].unused == sectorsize)
 				{
 					usedblocks++;
 				}
-				list[str0]--;
+				list[str0].unused--;
 			}
 		}
 		//std::cout << str0 << ";" << str1 << ";" << str2 << std::endl;
@@ -362,12 +368,9 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 	std::string rstr;
 	unsigned step = 0;
 	unsigned range = 0;
+	Sectorsize = sectorsize;
 	std::map<std::string, std::map<unsigned long, unsigned long long>> partlist;
-	std::map<std::string, unsigned long> list;
-	for (unsigned long i = 0; i < disksize / sectorsize - tablesize; i++)
-	{
-		list[std::to_string(i)] = sectorsize;
-	}
+	std::map<std::string, SectorSize> list;
 	for (unsigned long long i = 0; i < tablelen; i++)
 	{
 		switch (tablestr[i] & 0xff)
@@ -418,10 +421,10 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 	std::string s;
 	for (unsigned long long i = 0; i < disksize / sectorsize - tablesize; i++)
 	{
-		if (list[std::to_string(i)] >= blocksize)
+		if (list[std::to_string(i)].unused >= blocksize)
 		{
 			o = 0;
-			if (list[std::to_string(i)] == sectorsize)
+			if (list[std::to_string(i)].unused == sectorsize)
 			{
 				bytecount = blocksize;
 			}
