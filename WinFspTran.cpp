@@ -2139,7 +2139,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	memset(&VolumeParams, 0, sizeof VolumeParams);
 	VolumeParams.SectorSize = min(1 << o, 32768);
 	VolumeParams.SectorsPerAllocationUnit = min(sectorsize / 512, 32768);
-	VolumeParams.MaxComponentLength = 255;
+	VolumeParams.MaxComponentLength = 0;
 	VolumeParams.VolumeCreationTime = ((PLARGE_INTEGER)&CreationTime)->QuadPart;
 	VolumeParams.VolumeSerialNumber = 0;
 	VolumeParams.FileInfoTimeout = 1000;
