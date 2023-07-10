@@ -739,10 +739,10 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 				break;
 			}
 			file[i] = filenames[filenamestrindex + i];
-			if (i > tempnamesize - 1)
+			if (i > tempnamesize - 2)
 			{
 				tempnamesize += 256;
-				wchar_t* alc = (wchar_t*)realloc(file, tempnamesize + 1);
+				wchar_t* alc = (wchar_t*)realloc(file, (tempnamesize + 1) * sizeof(wchar_t));
 				if (!alc)
 				{
 					free(file);
