@@ -2139,7 +2139,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	VolumeParams.VolumeCreationTime = ((PLARGE_INTEGER)&CreationTime)->QuadPart;
 	VolumeParams.VolumeSerialNumber = 0;
 	VolumeParams.FileInfoTimeout = 1000;
-	VolumeParams.CaseSensitiveSearch = 0;
+	VolumeParams.CaseSensitiveSearch = 1;
 	VolumeParams.CasePreservedNames = 1;
 	VolumeParams.UnicodeOnDisk = 1;
 	VolumeParams.PersistentAcls = 1;
