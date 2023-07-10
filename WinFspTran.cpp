@@ -821,7 +821,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 
 	if (ReplaceFileAttributes)
 	{
-		unsigned long winattrs = FileAttributes | FILE_ATTRIBUTE_ARCHIVE;
+		unsigned long winattrs = FileAttributes;
 		attrtoATTR(winattrs);
 		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
 	}
@@ -830,7 +830,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 		unsigned long winattrs = 0;
 		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 0);
 		ATTRtoattr(winattrs);
-		winattrs |= FileAttributes | FILE_ATTRIBUTE_ARCHIVE;
+		winattrs |= FileAttributes;
 		attrtoATTR(winattrs);
 		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
 	}
@@ -1161,7 +1161,7 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UIN
 {
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
-	unsigned long winattrs = FileAttributes | FILE_ATTRIBUTE_ARCHIVE;
+	unsigned long winattrs = FileAttributes;
 
 	unsigned long long FilenameIndex = 0;
 	unsigned long long FilenameSTRIndex = 0;
@@ -1169,6 +1169,10 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UIN
 
 	if (winattrs != INVALID_FILE_ATTRIBUTES)
 	{
+		if (!(winattrs & FILE_ATTRIBUTE_DIRECTORY))
+		{
+			winattrs |= FILE_ATTRIBUTE_ARCHIVE;
+		}
 		attrtoATTR(winattrs);
 		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
 	}
