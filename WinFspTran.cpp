@@ -1647,6 +1647,12 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 		free(FileNameParent);
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
+	unsigned HitMarker = !Marker;
+	unsigned long long MarkerLen = 0;
+	if (Marker)
+	{
+		MarkerLen = wcslen(Marker);
+	}
 	for (unsigned long long i = 0; i < SpFs->FilenameCount; i++)
 	{
 		unsigned long long j = 0;
@@ -1703,9 +1709,19 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 			{
 				if (std::wstring(FileNameSuffix).find(L":") == std::string::npos)
 				{
-					if (!AddDirInfo(SpFs, FileName, FileNameSuffix, Buffer, BufferLength, PBytesTransferred))
+					if (!HitMarker)
 					{
-						return STATUS_SUCCESS;
+						if (!wcsincmp(FileNameSuffix, Marker, MarkerLen) && wcslen(FileNameSuffix) == MarkerLen)
+						{
+							HitMarker = 1;
+						}
+					}
+					else
+					{
+						if (!AddDirInfo(SpFs, FileName, FileNameSuffix, Buffer, BufferLength, PBytesTransferred))
+						{
+							return STATUS_SUCCESS;
+						}
 					}
 				}
 			}
