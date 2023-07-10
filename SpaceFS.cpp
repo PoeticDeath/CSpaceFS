@@ -728,6 +728,16 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 	{
 		return;
 	}
+	wchar_t* name = (wchar_t*)calloc(filenamesize + 1, sizeof(wchar_t));
+	if (!name)
+	{
+		free(file);
+		return;
+	}
+	for (unsigned long long i = 0; i < filenamesize; i++)
+	{
+		name[i] = filename[i] & 0xff;
+	}
 	for (; filenameindex < filenamecount;)
 	{
 		for (unsigned long long i = 0; i < tempnamesize; i++)
@@ -752,7 +762,7 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 				alc = NULL;
 			}
 		}
-		if (!wcsincmp(file, filename, filenamesize) && wcslen(file) == filenamesize)
+		if (!wcsincmp(file, name, filenamesize) && wcslen(file) == filenamesize)
 		{
 			break;
 		}
