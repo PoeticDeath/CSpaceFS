@@ -756,6 +756,7 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 				if (!alc)
 				{
 					free(file);
+					free(name);
 					return;
 				}
 				file = alc;
@@ -773,6 +774,7 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 	}
 	filenamestrindex--;
 	free(file);
+	free(name);
 }
 
 unsigned long long gettablestrindex(PWSTR filename, char* filenames, char* tablestr, unsigned long long filenamecount)

@@ -934,6 +934,9 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR 
 		}
 	}
 
+	free(Filename);
+	free(FileNameParent);
+	free(FileNameSuffix);
 	return STATUS_SUCCESS;
 }
 
