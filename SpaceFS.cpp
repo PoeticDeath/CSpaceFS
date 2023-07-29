@@ -936,7 +936,7 @@ int desimp(char* charmap, char*& tablestr)
 			cblock = alc;
 			alc = NULL;
 		}
-		if (i > newtablelen - 2)
+		if (newloc > newtablelen - 2)
 		{
 			newtablelen += 256;
 			alc = (char*)realloc(newtablestr, newtablelen);
