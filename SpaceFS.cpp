@@ -166,6 +166,7 @@ int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned lo
 	table[2] = (tablesize & 0x00ff0000) >> 16;
 	table[3] = (tablesize & 0x0000ff00) >> 8;
 	table[4] = (tablesize & 0x000000ff);
+	tablesize++;
 	return 0;
 }
 
@@ -462,6 +463,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 				else
 				{
 					s = std::to_string(i);
+					usedblocks++;
 				}
 				break;
 			}
@@ -1297,7 +1299,7 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 			break;
 		}
 	}
-	tablesize = (tablelen + filenamesizes + (35 * filenamecount) + sectorsize - 1) / sectorsize + 1;
+	tablesize = (tablelen + filenamesizes + (35 * filenamecount) + sectorsize - 1) / sectorsize;
 	settablesize(sectorsize, tablesize, extratablesize, table);
 	for (unsigned long long i = 0; i < tablelen; i++)
 	{
@@ -1868,6 +1870,10 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 
 int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, unsigned long tablesize, unsigned long long disksize, unsigned long long size, unsigned long long newsize, unsigned long long filenameindex, char* charmap, char*& tablestr, char*& fileinfo, unsigned long long& usedblocks, PWSTR filename, char* filenames, unsigned long long filenamecount)
 {
+	if (static_cast<long long>(newsize) - size > disksize - static_cast<unsigned long long>(tablesize + 1) * sectorsize - usedblocks * sectorsize)
+	{
+		return 1;
+	}
 	desimp(charmap, tablestr);
 	index = gettablestrindex(filename, filenames, tablestr, filenamecount);
 	if (size < newsize)
@@ -2061,6 +2067,17 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	//std::cout << "Fileinfo: " << std::string(fileinfo, filenamecount * 35) << std::endl;
 
 	unsigned long long usedblocks = 0;
+	unsigned long long index = 0;
+	unsigned long long filenameindex = 0;
+	unsigned long long filenamestrindex = 0;
+	unsigned long long filesize = 0;
+	getfilenameindex(PWSTR(L"/"), filenames, filenamecount, filenameindex, filenamestrindex);
+	index = gettablestrindex(PWSTR(L"/"), filenames, tablestr, filenamecount);
+	getfilesize(sectorsize, index, tablestr, filesize);
+	if (!trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize, filesize + 1, filenameindex, charmap, tablestr, fileinfo, usedblocks, PWSTR(L"/"), filenames, filenamecount))
+	{
+		trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize + 1, filesize, filenameindex, charmap, tablestr, fileinfo, usedblocks, PWSTR(L"/"), filenames, filenamecount);
+	}
 
 	createfile((PWSTR)L"/Test.bin", 545, 545, 448, 2048, filenamecount, fileinfo, filenames, charmap, tablestr);
 	createfile((PWSTR)L"/Test", 545, 1000, 448, 2048, filenamecount, fileinfo, filenames, charmap, tablestr);

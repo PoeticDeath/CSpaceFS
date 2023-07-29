@@ -450,8 +450,18 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM* FileSystem, FSP_FSCTL_VOLUME_INFO
 	getfilenameindex(PWSTR(L":"), SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameSTRIndex, 0);
 
-	VolumeInfo->TotalSize = SpFs->DiskSize - SpFs->ExtraTableSize;
-	VolumeInfo->FreeSize = SpFs->DiskSize - SpFs->ExtraTableSize - SpFs->UsedBlocks * SpFs->SectorSize;
+	VolumeInfo->TotalSize = SpFs->DiskSize - static_cast<unsigned long long>(SpFs->TableSize) * SpFs->SectorSize - SpFs->SectorSize;
+
+	unsigned long long DirSize = 0;
+	getfilenameindex(PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	Index = gettablestrindex(PWSTR(L"/"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, DirSize);
+	if (!trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, DirSize, DirSize + 1, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount))
+	{
+		trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, DirSize + 1, DirSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount);
+	}
+
+	VolumeInfo->FreeSize = SpFs->DiskSize - static_cast<unsigned long long>(SpFs->TableSize) * SpFs->SectorSize - SpFs->SectorSize - SpFs->UsedBlocks * SpFs->SectorSize;
 	for (int i = 0; i < FileSize; i++)
 	{
 		VolumeInfo->VolumeLabel[i] = buf[i];
@@ -473,7 +483,10 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM* FileSystem, PWSTR Label, FSP_FS
 
 	getfilenameindex(PWSTR(L":"), SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
-	trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, LabelLen, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L":"), SpFs->Filenames, SpFs->FilenameCount);
+	if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, LabelLen, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L":"), SpFs->Filenames, SpFs->FilenameCount))
+	{
+		return STATUS_DISK_FULL;
+	}
 	char* buf = (char*)calloc(32, 1);
 	if (!buf)
 	{
@@ -486,8 +499,18 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM* FileSystem, PWSTR Label, FSP_FS
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, LabelLen, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 1);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 
-	VolumeInfo->TotalSize = SpFs->DiskSize - SpFs->ExtraTableSize;
-	VolumeInfo->FreeSize = SpFs->DiskSize - SpFs->ExtraTableSize - SpFs->UsedBlocks * SpFs->SectorSize;
+	VolumeInfo->TotalSize = SpFs->DiskSize - static_cast<unsigned long long>(SpFs->TableSize) * SpFs->SectorSize - SpFs->SectorSize;
+
+	unsigned long long DirSize = 0;
+	getfilenameindex(PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	Index = gettablestrindex(PWSTR(L"/"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, DirSize);
+	if (!trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, DirSize, DirSize + 1, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount))
+	{
+		trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, DirSize + 1, DirSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount);
+	}
+
+	VolumeInfo->FreeSize = SpFs->DiskSize - static_cast<unsigned long long>(SpFs->TableSize) * SpFs->SectorSize - SpFs->SectorSize - SpFs->UsedBlocks * SpFs->SectorSize;
 	memcpy(VolumeInfo->VolumeLabel, Label, LabelLen * sizeof(wchar_t));
 	VolumeInfo->VolumeLabelLength = LabelLen * sizeof(wchar_t);
 	free(buf);
@@ -697,7 +720,20 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 			ALC = NULL;
 			readwritefile(SpFs->hDisk, SpFs->SectorSize, SecurityParentIndex, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, SecurityParentDirectoryIndex, 0);
 		}
-		trunfile(SpFs->hDisk, SpFs->SectorSize, SecurityIndex, SpFs->TableSize, SpFs->DiskSize, 0, *BufLen, SecurityFileIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, SecurityName, SpFs->Filenames, SpFs->FilenameCount);
+		if (trunfile(SpFs->hDisk, SpFs->SectorSize, SecurityIndex, SpFs->TableSize, SpFs->DiskSize, 0, *BufLen, SecurityFileIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, SecurityName, SpFs->Filenames, SpFs->FilenameCount))
+		{
+			unsigned long long Index = gettablestrindex(Filename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+			unsigned long long FileIndex = 0;
+			unsigned long long FileSTRIndex = 0;
+			getfilenameindex(Filename, SpFs->Filenames, SpFs->FilenameCount, FileIndex, FileSTRIndex);
+			deletefile(Index, FileIndex, FileSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
+			deletefile(SecurityIndex, SecurityFileIndex, SecurityFileSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
+			free(SecurityParentName);
+			free(SecurityName);
+			free(BufLen);
+			free(Buf);
+			return STATUS_DISK_FULL;
+		}
 		readwritefile(SpFs->hDisk, SpFs->SectorSize, SecurityIndex, 0, *BufLen, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, SecurityFileIndex, 1);
 		free(SecurityName);
 		free(BufLen);
@@ -1126,7 +1162,10 @@ static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buff
 	}
 	if (Offset + Length > FileSize)
 	{
-		trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, Offset + Length, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount);
+		if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, Offset + Length, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount))
+		{
+			return STATUS_DISK_FULL;
+		}
 		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 	}
 
@@ -1216,7 +1255,10 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT
 
 		getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 		getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
-		trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, NewSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount);
+		if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, NewSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount))
+		{
+			return STATUS_DISK_FULL;
+		}
 		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 	}
 
@@ -1579,7 +1621,13 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 	ConvertSecurityDescriptorToStringSecurityDescriptorA(NewSecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, (PULONG)PSecurityDescriptorSize);
 	FspDeleteSecurityDescriptor(NewSecurityDescriptor, (NTSTATUS(*)())FspSetSecurityDescriptor);
 
-	trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, *PSecurityDescriptorSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, SecurityName, SpFs->Filenames, SpFs->FilenameCount);
+	if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, *PSecurityDescriptorSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, SecurityName, SpFs->Filenames, SpFs->FilenameCount))
+	{
+		free(PSecurityDescriptorSize);
+		free(SecurityName);
+		free(Buf);
+		return STATUS_DISK_FULL;
+	}
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, *PSecurityDescriptorSize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, FilenameIndex, 1);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 	free(PSecurityDescriptorSize);
@@ -2087,8 +2135,10 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	getfilenameindex(PWSTR(L"/"), filenames, filenamecount, filenameindex, filenamestrindex);
 	index = gettablestrindex(PWSTR(L"/"), filenames, tablestr, filenamecount);
 	getfilesize(sectorsize, index, tablestr, filesize);
-	trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize, filesize + 1, filenameindex, charmap, tablestr, fileinfo, usedblocks, PWSTR(L"/"), filenames, filenamecount);
-	trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize + 1, filesize, filenameindex, charmap, tablestr, fileinfo, usedblocks, PWSTR(L"/"), filenames, filenamecount);
+	if (!trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize, filesize + 1, filenameindex, charmap, tablestr, fileinfo, usedblocks, PWSTR(L"/"), filenames, filenamecount))
+	{
+		trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize + 1, filesize, filenameindex, charmap, tablestr, fileinfo, usedblocks, PWSTR(L"/"), filenames, filenamecount);
+	}
 
 	// Need to init SpaceFS ^
 
