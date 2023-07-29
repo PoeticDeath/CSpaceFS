@@ -1021,6 +1021,11 @@ int simp(char* charmap, char*& tablestr)
 			}
 			else
 			{
+				if (newtablestr[newloc] != 45)
+				{
+					newloc--;
+					newtablestr[newloc] = 45;
+				}
 				newloc++;
 				for (unsigned long long i = 0; i < str0.length(); i++)
 				{
