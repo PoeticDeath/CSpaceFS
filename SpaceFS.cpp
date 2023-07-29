@@ -844,6 +844,19 @@ int desimp(char* charmap, char*& tablestr)
 				{
 					newtablestr[newloc] = str0[i];
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 			}
 			else
@@ -854,9 +867,35 @@ int desimp(char* charmap, char*& tablestr)
 					{
 						newtablestr[newloc] = std::to_string(p)[i];
 						newloc++;
+						if (newloc > newtablelen - 2)
+						{
+							newtablelen += 256;
+							alc = (char*)realloc(newtablestr, newtablelen);
+							if (!alc)
+							{
+								free(cblock);
+								free(newtablestr);
+								return 1;
+							}
+							newtablestr = alc;
+							alc = NULL;
+						}
 					}
 					newtablestr[newloc] = 44;
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 				newloc--;
 			}
@@ -864,21 +903,86 @@ int desimp(char* charmap, char*& tablestr)
 			{
 				newtablestr[newloc] = 59;
 				newloc++;
+				if (newloc > newtablelen - 2)
+				{
+					newtablelen += 256;
+					alc = (char*)realloc(newtablestr, newtablelen);
+					if (!alc)
+					{
+						free(cblock);
+						free(newtablestr);
+						return 1;
+					}
+					newtablestr = alc;
+					alc = NULL;
+				}
 				for (unsigned long long i = 0; i < str1.length(); i++)
 				{
 					newtablestr[newloc] = str1[i];
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 				newtablestr[newloc] = 59;
 				newloc++;
+				if (newloc > newtablelen - 2)
+				{
+					newtablelen += 256;
+					alc = (char*)realloc(newtablestr, newtablelen);
+					if (!alc)
+					{
+						free(cblock);
+						free(newtablestr);
+						return 1;
+					}
+					newtablestr = alc;
+					alc = NULL;
+				}
 				for (unsigned long long i = 0; i < str2.length(); i++)
 				{
 					newtablestr[newloc] = str2[i];
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 			}
 			newtablestr[newloc] = 46;
 			newloc++;
+			if (newloc > newtablelen - 2)
+			{
+				newtablelen += 256;
+				alc = (char*)realloc(newtablestr, newtablelen);
+				if (!alc)
+				{
+					free(cblock);
+					free(newtablestr);
+					return 1;
+				}
+				newtablestr = alc;
+				alc = NULL;
+			}
 			step = 0;
 			range = 0;
 			break;
@@ -896,6 +1000,19 @@ int desimp(char* charmap, char*& tablestr)
 				{
 					newtablestr[newloc] = str0[i];
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 			}
 			else
@@ -906,14 +1023,53 @@ int desimp(char* charmap, char*& tablestr)
 					{
 						newtablestr[newloc] = std::to_string(p)[i];
 						newloc++;
+						if (newloc > newtablelen - 2)
+						{
+							newtablelen += 256;
+							alc = (char*)realloc(newtablestr, newtablelen);
+							if (!alc)
+							{
+								free(cblock);
+								free(newtablestr);
+								return 1;
+							}
+							newtablestr = alc;
+							alc = NULL;
+						}
 					}
 					newtablestr[newloc] = 44;
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 				newloc--;
 			}
 			newtablestr[newloc] = 44;
 			newloc++;
+			if (newloc > newtablelen - 2)
+			{
+				newtablelen += 256;
+				alc = (char*)realloc(newtablestr, newtablelen);
+				if (!alc)
+				{
+					free(cblock);
+					free(newtablestr);
+					return 1;
+				}
+				newtablestr = alc;
+				alc = NULL;
+			}
 			step = 0;
 			range = 0;
 			break;
@@ -934,19 +1090,6 @@ int desimp(char* charmap, char*& tablestr)
 				return 1;
 			}
 			cblock = alc;
-			alc = NULL;
-		}
-		if (newloc > newtablelen - 2)
-		{
-			newtablelen += 256;
-			alc = (char*)realloc(newtablestr, newtablelen);
-			if (!alc)
-			{
-				free(cblock);
-				free(newtablestr);
-				return 1;
-			}
-			newtablestr = alc;
 			alc = NULL;
 		}
 	}
@@ -1723,9 +1866,10 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 	return 0;
 }
 
-int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, unsigned long tablesize, unsigned long long disksize, unsigned long long size, unsigned long long newsize, unsigned long long filenameindex, char* charmap, char*& tablestr, char*& fileinfo, unsigned long long& usedblocks)
+int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, unsigned long tablesize, unsigned long long disksize, unsigned long long size, unsigned long long newsize, unsigned long long filenameindex, char* charmap, char*& tablestr, char*& fileinfo, unsigned long long& usedblocks, PWSTR filename, char* filenames, unsigned long long filenamecount)
 {
 	desimp(charmap, tablestr);
+	index = gettablestrindex(filename, filenames, tablestr, filenamecount);
 	if (size < newsize)
 	{
 		if (size % sectorsize)
@@ -1750,6 +1894,7 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 		dealloc(sectorsize, charmap, tablestr, index, size, size - newsize);
 	}
 	simp(charmap, tablestr);
+	index = gettablestrindex(filename, filenames, tablestr, filenamecount);
 	time_t ltime;
 	time(&ltime);
 	double ctime = (double)ltime;
