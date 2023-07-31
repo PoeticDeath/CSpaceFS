@@ -1880,14 +1880,14 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 
 int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, unsigned long tablesize, unsigned long long disksize, unsigned long long size, unsigned long long newsize, unsigned long long filenameindex, char* charmap, char*& tablestr, char*& fileinfo, unsigned long long& usedblocks, PWSTR filename, char* filenames, unsigned long long filenamecount)
 {
-	if (static_cast<long long>(newsize) - size > disksize - static_cast<unsigned long long>(tablesize + 1) * sectorsize - usedblocks * sectorsize)
-	{
-		return 1;
-	}
 	desimp(charmap, tablestr);
 	index = gettablestrindex(filename, filenames, tablestr, filenamecount);
 	if (size < newsize)
 	{
+		if (newsize - size > disksize - static_cast<unsigned long long>(tablesize + 1) * sectorsize - usedblocks * sectorsize)
+		{
+			return 1;
+		}
 		if (size % sectorsize)
 		{
 			char* temp = (char*)calloc(size % sectorsize + 1, 1);

@@ -1635,7 +1635,18 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 	SIZE_T FileSecuritySize;
 	NTSTATUS Result;
 
-	Result = SetSecurityDescriptor(S, SecurityInformation, ModificationDescriptor, &NewSecurityDescriptor);
+	if (SecurityInformation & 1)
+	{
+		Result = SetSecurityDescriptor(S, 1, ModificationDescriptor, &NewSecurityDescriptor);
+		if (NT_SUCCESS(Result))
+		{
+			Result = FspSetSecurityDescriptor(NewSecurityDescriptor, SecurityInformation - 1, ModificationDescriptor, &NewSecurityDescriptor);
+		}
+	}
+	else
+	{
+		Result = FspSetSecurityDescriptor(S, SecurityInformation, ModificationDescriptor, &NewSecurityDescriptor);
+	}
 	if (!NT_SUCCESS(Result))
 	{
 		free(PSecurityDescriptorSize);
@@ -1646,7 +1657,7 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 	FileSecuritySize = GetSecurityDescriptorLength(NewSecurityDescriptor);
 
 	*PSecurityDescriptorSize = FileSecuritySize;
-	LPSTR* Buf = (LPSTR*)calloc(*PSecurityDescriptorSize, 1);
+	LPSTR* Buf = (LPSTR*)calloc(FileSecuritySize, 1);
 	if (!Buf)
 	{
 		free(PSecurityDescriptorSize);
@@ -1656,14 +1667,14 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 	ConvertSecurityDescriptorToStringSecurityDescriptorA(NewSecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, (PULONG)PSecurityDescriptorSize);
 	FspDeleteSecurityDescriptor(NewSecurityDescriptor, (NTSTATUS(*)())FspSetSecurityDescriptor);
 
-	if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, *PSecurityDescriptorSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, SecurityName, SpFs->Filenames, SpFs->FilenameCount))
+	if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, FileSecuritySize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, SecurityName, SpFs->Filenames, SpFs->FilenameCount))
 	{
 		free(PSecurityDescriptorSize);
 		free(SecurityName);
 		free(Buf);
 		return STATUS_DISK_FULL;
 	}
-	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, *PSecurityDescriptorSize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, FilenameIndex, 1);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSecuritySize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, FilenameIndex, 1);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 	free(PSecurityDescriptorSize);
 	free(SecurityName);
