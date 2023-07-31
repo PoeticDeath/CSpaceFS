@@ -13,6 +13,7 @@
 char* charmap = (char*)"0123456789-,.; ";
 std::map<unsigned, unsigned> emap = {};
 std::map<unsigned, unsigned> dmap = {};
+std::map<std::wstring, BOOLEAN> opened = {};
 
 typedef struct
 {
@@ -743,6 +744,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 	free(SecurityParentName);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 
+	opened[std::wstring(Filename)] = true;
 	return GetFileInfoInternal(SpFs, FileInfo, Filename);
 }
 
@@ -768,6 +770,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateO
 	FileContext->Path = Filename;
 	*PFileContext = FileContext;
 
+	opened[std::wstring(Filename)] = true;
 	return GetFileInfoInternal(SpFs, FileInfo, Filename);
 }
 
@@ -843,11 +846,14 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 		{
 			if (std::wstring(TempFilename).find(L":") != std::string::npos)
 			{
-				getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
-				TempIndex = gettablestrindex(TempFilename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
-				deletefile(TempIndex, TempFilenameIndex, TempFilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
-				Offset -= wcslen(TempFilename) + 1;
-				O++;
+				if (!opened[std::wstring(TempFilename)])
+				{
+					getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
+					TempIndex = gettablestrindex(TempFilename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+					deletefile(TempIndex, TempFilenameIndex, TempFilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
+					Offset -= wcslen(TempFilename) + 1;
+					O++;
+				}
 			}
 		}
 	}
@@ -1021,6 +1027,10 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 			return;
 		}
 		deletefile(Index, FilenameIndex, FilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
+		if (std::wstring(FileCtx->Path).find(L":") != std::string::npos)
+		{
+			return;
+		}
 		Index = gettablestrindex(FileCtx->Path + 1, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 		getfilenameindex(FileCtx->Path + 1, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 		deletefile(Index, FilenameIndex, FilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
@@ -1107,6 +1117,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 static VOID Close(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext)
 {
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	opened.erase(std::wstring(FileCtx->Path));
 	free(FileCtx->Path);
 	free(FileCtx);
 	return;
