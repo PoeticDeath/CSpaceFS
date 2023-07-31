@@ -1287,11 +1287,46 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	memcpy(NewFilename, NewFileName, NewFileNameLen * sizeof(wchar_t));
 	ReplaceBSWFS(NewFilename);
 
-	Result = FindDuplicate(SpFs, NewFilename);
-	if (!NT_SUCCESS(Result))
+	if (!(FileNameLen == NewFileNameLen && !wcsincmp(FileCtx->Path, NewFilename, FileNameLen)))
 	{
-		free(NewFilename);
-		return Result;
+		Result = FindDuplicate(SpFs, NewFilename);
+		if (!NT_SUCCESS(Result))
+		{
+			if (!ReplaceIfExists)
+			{
+				free(NewFilename);
+				return Result;
+			}
+			else
+			{
+				FSP_FSCTL_FILE_INFO* FileInfo = (FSP_FSCTL_FILE_INFO*)calloc(1, sizeof(FSP_FSCTL_FILE_INFO));
+				GetFileInfoInternal(SpFs, FileInfo, NewFilename);
+				if (!(FileInfo->FileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+				{
+					free(FileInfo);
+					SPFS_FILE_CONTEXT* NewFileCtx = (SPFS_FILE_CONTEXT*)calloc(1, sizeof(SPFS_FILE_CONTEXT));
+					if (!NewFileCtx)
+					{
+						free(NewFilename);
+						return STATUS_INSUFFICIENT_RESOURCES;
+					}
+					NewFileCtx->Path = NewFilename;
+					Cleanup(FileSystem, NewFileCtx, NewFilename, FspCleanupDelete);
+					free(NewFileCtx);
+					Result = FindDuplicate(SpFs, NewFilename);
+					if (!NT_SUCCESS(Result))
+					{
+						free(NewFilename);
+						return Result;
+					}
+				}
+				else
+				{
+					free(FileInfo);
+					return STATUS_ACCESS_DENIED;
+				}
+			}
+		}
 	}
 
 	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);

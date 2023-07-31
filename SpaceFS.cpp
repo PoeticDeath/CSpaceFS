@@ -1479,6 +1479,16 @@ int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenam
 	unsigned long long oldlen = strlen(filenames);
 	unsigned long long oldfilenamelen = wcslen(oldfilename);
 	unsigned long long newfilenamelen = wcslen(newfilename);
+	if (newfilenamelen > oldfilenamelen)
+	{
+		char* alc = (char*)realloc(filenames, oldlen + newfilenamelen - oldfilenamelen + 1);
+		if (!alc)
+		{
+			return 1;
+		}
+		filenames = alc;
+		alc = NULL;
+	}
 	char* coldfilename = (char*)calloc(oldfilenamelen + 1, 1);
 	char* cnewfilename = (char*)calloc(newfilenamelen + 1, 1);
 	char* files = (char*)calloc(oldlen - filenamestrindex + 1, 1);
