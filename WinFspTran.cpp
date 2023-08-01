@@ -1723,7 +1723,7 @@ static BOOLEAN AddDirInfo(SPFS* SpFs, PWSTR Name, PWSTR FileName, PVOID Buffer, 
 	return Result;
 }
 
-static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Patter, PWSTR Marker, PVOID Buffer, ULONG BufferLength, PULONG PBytesTransferred)
+static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Pattern, PWSTR Marker, PVOID Buffer, ULONG BufferLength, PULONG PBytesTransferred)
 {
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
