@@ -423,23 +423,25 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 	unsigned long bytecount = 0;
 	unsigned long o = 0;
 	std::string s;
+	std::string t;
 	for (unsigned long long i = 0; i < disksize / sectorsize - tablesize; i++)
 	{
-		if (list[std::to_string(i)].unused >= blocksize)
+		t = std::to_string(i);
+		if (list[t].unused >= blocksize)
 		{
 			o = 0;
-			if (list[std::to_string(i)].unused == sectorsize)
+			if (list[t].unused == sectorsize)
 			{
 				bytecount = blocksize;
 			}
 			while (bytecount < blocksize)
 			{
-				if (!partlist[std::to_string(i)][o / 64])
+				if (!partlist[t][o / 64])
 				{
 					o += min(blocksize - bytecount, 64);
 					bytecount += min(blocksize - bytecount, 64);
 				}
-				else if (!(partlist[std::to_string(i)][o / 64] & static_cast<unsigned long long>(1) << o % 64))
+				else if (!(partlist[t][o / 64] & static_cast<unsigned long long>(1) << o % 64))
 				{
 					bytecount++;
 					o++;
@@ -458,11 +460,11 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 			{
 				if (blocksize % sectorsize)
 				{
-					s = std::to_string(i) + ";" + std::to_string(o - bytecount) + ";" + std::to_string(o);
+					s = t + ";" + std::to_string(o - bytecount) + ";" + std::to_string(o);
 				}
 				else
 				{
-					s = std::to_string(i);
+					s = t;
 					usedblocks++;
 				}
 				break;
