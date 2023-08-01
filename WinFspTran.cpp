@@ -13,7 +13,7 @@
 char* charmap = (char*)"0123456789-,.; ";
 std::map<unsigned, unsigned> emap = {};
 std::map<unsigned, unsigned> dmap = {};
-std::map<std::wstring, BOOLEAN> opened = {};
+std::map<std::wstring, unsigned long long> opened = {};
 std::map<std::wstring, unsigned long long> allocationsizes = {};
 
 typedef struct
@@ -752,7 +752,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 	free(SecurityParentName);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 
-	opened[std::wstring(Filename)] = true;
+	opened[std::wstring(Filename)]++;
 	allocationsizes[std::wstring(Filename)] = AllocationSize;
 	return GetFileInfoInternal(SpFs, FileInfo, Filename);
 }
@@ -779,9 +779,8 @@ static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateO
 	FileContext->Path = Filename;
 	*PFileContext = FileContext;
 
-	opened[std::wstring(Filename)] = true;
+	opened[std::wstring(Filename)]++;
 	allocationsizes[std::wstring(Filename)] = 0;
-	allocationsizes.erase(std::wstring(Filename));
 	return GetFileInfoInternal(SpFs, FileInfo, Filename);
 }
 
@@ -1128,8 +1127,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 static VOID Close(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext)
 {
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
-	opened[std::wstring(FileCtx->Path)] = false;
-	opened.erase(std::wstring(FileCtx->Path));
+	opened[std::wstring(FileCtx->Path)]--;
 	free(FileCtx->Path);
 	free(FileCtx);
 	return;
