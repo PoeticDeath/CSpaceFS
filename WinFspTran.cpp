@@ -14,6 +14,7 @@ char* charmap = (char*)"0123456789-,.; ";
 std::map<unsigned, unsigned> emap = {};
 std::map<unsigned, unsigned> dmap = {};
 std::map<std::wstring, BOOLEAN> opened = {};
+std::map<std::wstring, unsigned long long> allocationsizes = {};
 
 typedef struct
 {
@@ -426,7 +427,14 @@ static NTSTATUS GetFileInfoInternal(SPFS* SpFs, FSP_FSCTL_FILE_INFO* FileInfo, P
 	FileInfo->FileAttributes = winattrs;
 	FileInfo->ReparseTag = 0;
 	FileInfo->FileSize = FileSize;
-	FileInfo->AllocationSize = (FileSize + SpFs->SectorSize - 1) / SpFs->SectorSize * SpFs->SectorSize;
+	if (!allocationsizes[FileName])
+	{
+		FileInfo->AllocationSize = (FileSize + SpFs->SectorSize - 1) / SpFs->SectorSize * SpFs->SectorSize;
+	}
+	else
+	{
+		FileInfo->AllocationSize = allocationsizes[FileName];
+	}
 	FileInfo->CreationTime = CreationTime * 10000000 + 116444736000000000;
 	FileInfo->LastAccessTime = LastAccessTime * 10000000 + 116444736000000000;
 	FileInfo->LastWriteTime = LastWriteTime * 10000000 + 116444736000000000;
@@ -745,6 +753,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 
 	opened[std::wstring(Filename)] = true;
+	allocationsizes[std::wstring(Filename)] = AllocationSize;
 	return GetFileInfoInternal(SpFs, FileInfo, Filename);
 }
 
@@ -771,6 +780,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateO
 	*PFileContext = FileContext;
 
 	opened[std::wstring(Filename)] = true;
+	allocationsizes.erase(std::wstring(Filename));
 	return GetFileInfoInternal(SpFs, FileInfo, Filename);
 }
 
