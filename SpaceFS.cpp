@@ -1392,9 +1392,10 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 		return 1;
 	}
 	memcpy(gum, fileinfo + filenamecount * 24, filenamecount * 11);
-	time_t ltime;
-	time(&ltime);
-	double t = (double)ltime;
+	FILETIME ltime;
+	GetSystemTimeAsFileTime(&ltime);
+	LONGLONG pltime = ((PLARGE_INTEGER)&ltime)->QuadPart;
+	double t = (double)(pltime - 116444736000000000) / 10000000;
 	char ti[8] = { 0 };
 	memcpy(ti, &t, 8);
 	char tim[8] = { 0 };
@@ -1873,9 +1874,10 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 		}
 	}
 	free(cblock);
-	time_t ltime;
-	time(&ltime);
-	double ctime = (double)ltime;
+	FILETIME ltime;
+	GetSystemTimeAsFileTime(&ltime);
+	LONGLONG pltime = ((PLARGE_INTEGER)&ltime)->QuadPart;
+	double ctime = (double)(pltime - 116444736000000000) / 10000000;
 	chtime(fileinfo, filenameindex, ctime, rw * 2 + 1);
 	return 0;
 }
@@ -1913,9 +1915,10 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	}
 	simp(charmap, tablestr);
 	index = gettablestrindex(filename, filenames, tablestr, filenamecount);
-	time_t ltime;
-	time(&ltime);
-	double ctime = (double)ltime;
+	FILETIME ltime;
+	GetSystemTimeAsFileTime(&ltime);
+	LONGLONG pltime = ((PLARGE_INTEGER)&ltime)->QuadPart;
+	double ctime = (double)(pltime - 116444736000000000) / 10000000;
 	chtime(fileinfo, filenameindex, ctime, 3);
 	return 0;
 }

@@ -416,12 +416,25 @@ static NTSTATUS GetFileInfoInternal(SPFS* SpFs, FSP_FSCTL_FILE_INFO* FileInfo, P
 	double LastWriteTime = 0;
 	double CreationTime = 0;
 
+	unsigned long long FileNameLen = wcslen(FileName);
+	PWSTR NoStreamFileName = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!NoStreamFileName)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	memcpy(NoStreamFileName, FileName, FileNameLen * sizeof(wchar_t));
+	RemoveStream(NoStreamFileName);
+	unsigned long long NoStreamFileNameIndex = 0;
+	unsigned long long NoStreamFileNameSTRIndex = 0;
+	getfilenameindex(NoStreamFileName, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
+	free(NoStreamFileName);
+
 	getfilenameindex(FileName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 	chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 0);
 	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
-	chtime(SpFs->FileInfo, FilenameIndex, LastAccessTime, 0);
-	chtime(SpFs->FileInfo, FilenameIndex, LastWriteTime, 2);
-	chtime(SpFs->FileInfo, FilenameIndex, CreationTime, 4);
+	chtime(SpFs->FileInfo, NoStreamFileNameIndex, LastAccessTime, 0);
+	chtime(SpFs->FileInfo, NoStreamFileNameIndex, LastWriteTime, 2);
+	chtime(SpFs->FileInfo, NoStreamFileNameIndex, CreationTime, 4);
 
 	ATTRtoattr(winattrs);
 	FileInfo->FileAttributes = winattrs;
@@ -439,7 +452,7 @@ static NTSTATUS GetFileInfoInternal(SPFS* SpFs, FSP_FSCTL_FILE_INFO* FileInfo, P
 	FileInfo->LastAccessTime = LastAccessTime * 10000000 + 116444736000000000;
 	FileInfo->LastWriteTime = LastWriteTime * 10000000 + 116444736000000000;
 	FileInfo->ChangeTime = FileInfo->LastWriteTime;
-	FileInfo->IndexNumber = FilenameIndex;
+	FileInfo->IndexNumber = NoStreamFileNameIndex;
 	FileInfo->HardLinks = 0;
 	FileInfo->EaSize = 0;
 
@@ -814,6 +827,12 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
+	memcpy(FileNameNoStream, FileCtx->Path, FileNameLen * sizeof(wchar_t));
+	RemoveStream(FileNameNoStream);
+	unsigned long long NoStreamFileNameIndex = 0;
+	unsigned long long NoStreamFileNameSTRIndex = 0;
+	getfilenameindex(FileNameNoStream, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
+
 	for (unsigned long long i = 0; i < SpFs->FilenameCount + O; i++)
 	{
 		unsigned long long j = 0;
@@ -887,12 +906,13 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
 	}
 
-	time_t ltime;
-	time(&ltime);
-	double LTime = (double)ltime;
-	chtime(SpFs->FileInfo, FilenameIndex, LTime, 1);
-	chtime(SpFs->FileInfo, FilenameIndex, LTime, 3);
-	chtime(SpFs->FileInfo, FilenameIndex, LTime, 5);
+	FILETIME ltime;
+	GetSystemTimeAsFileTime(&ltime);
+	LONGLONG pltime = ((PLARGE_INTEGER)&ltime)->QuadPart;
+	double LTime = (double)(pltime - 116444736000000000) / 10000000;
+	chtime(SpFs->FileInfo, NoStreamFileNameIndex, LTime, 1);
+	chtime(SpFs->FileInfo, NoStreamFileNameIndex, LTime, 3);
+	chtime(SpFs->FileInfo, NoStreamFileNameIndex, LTime, 5);
 
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 	return GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
@@ -1005,6 +1025,19 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 	chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 0);
 	ATTRtoattr(winattrs);
 
+	unsigned long long FileNameLen = wcslen(FileCtx->Path);
+	PWSTR NoStreamFileName = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!NoStreamFileName)
+	{
+		return;
+	}
+	memcpy(NoStreamFileName, FileCtx->Path, FileNameLen * sizeof(wchar_t));
+	RemoveStream(NoStreamFileName);
+	unsigned long long NoStreamFileNameIndex = 0;
+	unsigned long long NoStreamFileNameSTRIndex = 0;
+	getfilenameindex(NoStreamFileName, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
+	free(NoStreamFileName);
+
 	if (Flags & FspCleanupSetArchiveBit)
 	{
 		if (!(winattrs & FILE_ATTRIBUTE_DIRECTORY))
@@ -1015,19 +1048,19 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 		}
 	}
 
-	time_t ltime;
-	time(&ltime);
+	FILETIME ltime;
+	GetSystemTimeAsFileTime(&ltime);
+	LONGLONG pltime = ((PLARGE_INTEGER)&ltime)->QuadPart;
+	double LTime = (double)(pltime - 116444736000000000) / 10000000;
 
 	if (Flags & FspCleanupSetLastAccessTime)
 	{
-		double ATime = (double)ltime;
-		chtime(SpFs->FileInfo, FilenameIndex, ATime, 1);
+		chtime(SpFs->FileInfo, NoStreamFileNameIndex, LTime, 1);
 	}
 
 	if (Flags & FspCleanupSetLastWriteTime || Flags & FspCleanupSetChangeTime)
 	{
-		double WTime = (double)ltime;
-		chtime(SpFs->FileInfo, FilenameIndex, WTime, 3);
+		chtime(SpFs->FileInfo, NoStreamFileNameIndex, LTime, 3);
 	}
 
 	if (Flags & FspCleanupDelete)
@@ -1139,9 +1172,20 @@ static NTSTATUS Read(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buffe
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 
 	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
-	unsigned long long FilenameIndex = 0;
-	unsigned long long FilenameSTRIndex = 0;
 	unsigned long long FileSize = 0;
+
+	unsigned long long FileNameLen = wcslen(FileCtx->Path);
+	PWSTR NoStreamFileName = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!NoStreamFileName)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	memcpy(NoStreamFileName, FileCtx->Path, FileNameLen * sizeof(wchar_t));
+	RemoveStream(NoStreamFileName);
+	unsigned long long NoStreamFileNameIndex = 0;
+	unsigned long long NoStreamFileNameSTRIndex = 0;
+	getfilenameindex(NoStreamFileName, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
+	free(NoStreamFileName);
 
 	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
 	if (Offset >= FileSize)
@@ -1149,13 +1193,13 @@ static NTSTATUS Read(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buffe
 		return STATUS_END_OF_FILE;
 	}
 	Length = min(Length, FileSize - Offset);
-	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
 	char* Buf = (char*)calloc(static_cast<size_t>(Length) + 1, 1);
 	if (!Buf)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, FilenameIndex, 0);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, NoStreamFileNameIndex, 0);
 	memcpy(Buffer, Buf, Length);
 	*PBytesTransffered = Length;
 	free(Buf);
@@ -1170,11 +1214,22 @@ static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buff
 	NTSTATUS Result = 0;
 
 	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
-	unsigned long long FilenameIndex = 0;
-	unsigned long long FilenameSTRIndex = 0;
 	unsigned long long FileSize = 0;
 
-	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	unsigned long long FileNameLen = wcslen(FileCtx->Path);
+	PWSTR NoStreamFileName = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!NoStreamFileName)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	memcpy(NoStreamFileName, FileCtx->Path, FileNameLen * sizeof(wchar_t));
+	RemoveStream(NoStreamFileName);
+	unsigned long long NoStreamFileNameIndex = 0;
+	unsigned long long NoStreamFileNameSTRIndex = 0;
+	getfilenameindex(NoStreamFileName, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
+	free(NoStreamFileName);
+
+	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
 	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
 
 	if (WriteToEndOfFile)
@@ -1183,7 +1238,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buff
 	}
 	if (Offset + Length > FileSize)
 	{
-		if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, Offset + Length, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount))
+		if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, Offset + Length, NoStreamFileNameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount))
 		{
 			return STATUS_DISK_FULL;
 		}
@@ -1196,7 +1251,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buff
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 	memcpy(Buf, Buffer, Length);
-	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, FilenameIndex, 1);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, NoStreamFileNameIndex, 1);
 	*PBytesTransferred = Length;
 	Result = GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
 	free(Buf);
@@ -1230,6 +1285,19 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UIN
 	unsigned long long FilenameSTRIndex = 0;
 	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 
+	unsigned long long FileNameLen = wcslen(FileCtx->Path);
+	PWSTR NoStreamFileName = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!NoStreamFileName)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	memcpy(NoStreamFileName, FileCtx->Path, FileNameLen * sizeof(wchar_t));
+	RemoveStream(NoStreamFileName);
+	unsigned long long NoStreamFileNameIndex = 0;
+	unsigned long long NoStreamFileNameSTRIndex = 0;
+	getfilenameindex(NoStreamFileName, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
+	free(NoStreamFileName);
+
 	if (winattrs != INVALID_FILE_ATTRIBUTES)
 	{
 		if (!(winattrs & FILE_ATTRIBUTE_DIRECTORY))
@@ -1243,20 +1311,20 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UIN
 	if (LastAccessTime)
 	{
 		double ATime = (LastAccessTime - static_cast<double>(116444736000000000)) / 10000000;
-		chtime(SpFs->FileInfo, FilenameIndex, ATime, 1);
+		chtime(SpFs->FileInfo, NoStreamFileNameIndex, ATime, 1);
 	}
 
 	if (LastWriteTime || ChangeTime)
 	{
 		LastWriteTime = max(LastWriteTime, ChangeTime);
 		double WTime = (LastWriteTime - static_cast<double>(116444736000000000)) / 10000000;
-		chtime(SpFs->FileInfo, FilenameIndex, WTime, 3);
+		chtime(SpFs->FileInfo, NoStreamFileNameIndex, WTime, 3);
 	}
 
 	if (CreationTime)
 	{
 		double CTime = (CreationTime - static_cast<double>(116444736000000000)) / 10000000;
-		chtime(SpFs->FileInfo, FilenameIndex, CTime, 5);
+		chtime(SpFs->FileInfo, NoStreamFileNameIndex, CTime, 5);
 	}
 
 	return GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
@@ -1270,13 +1338,24 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT
 	if (!SetAllocationSize)
 	{
 		unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
-		unsigned long long FilenameIndex = 0;
-		unsigned long long FilenameSTRIndex = 0;
 		unsigned long long FileSize = 0;
 
-		getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+		unsigned long long FileNameLen = wcslen(FileCtx->Path);
+		PWSTR NoStreamFileName = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+		if (!NoStreamFileName)
+		{
+			return STATUS_INSUFFICIENT_RESOURCES;
+		}
+		memcpy(NoStreamFileName, FileCtx->Path, FileNameLen * sizeof(wchar_t));
+		RemoveStream(NoStreamFileName);
+		unsigned long long NoStreamFileNameIndex = 0;
+		unsigned long long NoStreamFileNameSTRIndex = 0;
+		getfilenameindex(NoStreamFileName, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
+		free(NoStreamFileName);
+
+		getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
 		getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
-		if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, NewSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount))
+		if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, NewSize, NoStreamFileNameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount))
 		{
 			return STATUS_DISK_FULL;
 		}
