@@ -436,6 +436,10 @@ static NTSTATUS GetFileInfoInternal(SPFS* SpFs, FSP_FSCTL_FILE_INFO* FileInfo, P
 	chtime(SpFs->FileInfo, NoStreamFileNameIndex, LastWriteTime, 2);
 	chtime(SpFs->FileInfo, NoStreamFileNameIndex, CreationTime, 4);
 
+	UINT64 CTime = CreationTime * 10000000 + 116444736000000000;
+	UINT64 ATime = LastAccessTime * 10000000 + 116444736000000000;
+	UINT64 WTime = LastWriteTime * 10000000 + 116444736000000000;
+
 	ATTRtoattr(winattrs);
 	FileInfo->FileAttributes = winattrs;
 	FileInfo->ReparseTag = 0;
@@ -448,9 +452,9 @@ static NTSTATUS GetFileInfoInternal(SPFS* SpFs, FSP_FSCTL_FILE_INFO* FileInfo, P
 	{
 		FileInfo->AllocationSize = allocationsizes[FileName];
 	}
-	FileInfo->CreationTime = CreationTime * 10000000 + 116444736000000000;
-	FileInfo->LastAccessTime = LastAccessTime * 10000000 + 116444736000000000;
-	FileInfo->LastWriteTime = LastWriteTime * 10000000 + 116444736000000000;
+	FileInfo->CreationTime = CTime + (static_cast<unsigned long long>(2) * (CTime > 116444736000000000)) + (CTime == 279172874304) + (static_cast<unsigned long long>(3) * (CTime == 287762808896));
+	FileInfo->LastAccessTime = ATime + (static_cast<unsigned long long>(2) * (ATime > 116444736000000000)) + (ATime == 279172874304) + (static_cast<unsigned long long>(3) * (ATime == 287762808896));
+	FileInfo->LastWriteTime = WTime + (static_cast<unsigned long long>(2) * (WTime > 116444736000000000)) + (WTime == 279172874304) + (static_cast<unsigned long long>(3) * (WTime == 287762808896));
 	FileInfo->ChangeTime = FileInfo->LastWriteTime;
 	FileInfo->IndexNumber = NoStreamFileNameIndex;
 	FileInfo->HardLinks = 0;
@@ -901,7 +905,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 		unsigned long winattrs = 0;
 		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 0);
 		ATTRtoattr(winattrs);
-		winattrs |= FileAttributes;
+		winattrs |= FileAttributes | 32;
 		attrtoATTR(winattrs);
 		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
 	}
@@ -1300,10 +1304,6 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UIN
 
 	if (winattrs != INVALID_FILE_ATTRIBUTES)
 	{
-		if (!(winattrs & FILE_ATTRIBUTE_DIRECTORY))
-		{
-			winattrs |= FILE_ATTRIBUTE_ARCHIVE;
-		}
 		attrtoATTR(winattrs);
 		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
 	}
