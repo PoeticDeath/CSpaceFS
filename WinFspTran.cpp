@@ -1112,10 +1112,10 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 					break;
 				}
 				Filename[j] = SpFs->Filenames[Offset + j] & 0xff;
-				if (j > FileNameLen - 1)
+				if (j > FileNameLenT - 1)
 				{
-					FileNameLen += 0xff;
-					ALC = (PWSTR)realloc(Filename, (FileNameLen + 1) * sizeof(wchar_t));
+					FileNameLenT += 0xff;
+					ALC = (PWSTR)realloc(Filename, (FileNameLenT + 1) * sizeof(wchar_t));
 					if (!ALC)
 					{
 						free(Filename);
@@ -1124,7 +1124,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 					}
 					Filename = ALC;
 					ALC = NULL;
-					ALC = (PWSTR)realloc(FileNameNoStream, (FileNameLen + 1) * sizeof(wchar_t));
+					ALC = (PWSTR)realloc(FileNameNoStream, (FileNameLenT + 1) * sizeof(wchar_t));
 					if (!ALC)
 					{
 						free(Filename);
@@ -1139,7 +1139,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 
 			memcpy(FileNameNoStream, Filename, (j + 1) * sizeof(wchar_t));
 			RemoveStream(FileNameNoStream);
-			if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLenT) && wcslen(FileNameNoStream) == FileNameLenT)
+			if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLen) && wcslen(FileNameNoStream) == FileNameLen)
 			{
 				if (std::wstring(Filename).find(L":") != std::string::npos)
 				{
@@ -1544,14 +1544,16 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 
 		memcpy(FileNameParent, TempFilename, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
-		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLen) && wcslen(FileNameParent) == FileNameLen)
+		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLen) && (wcslen(FileNameParent) == FileNameLen || FileNameParent[FileNameLen] == *L"/"))
 		{
 			if (wcslen(FileNameSuffix) > 0)
 			{
 				getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
-				renamefile(TempFilename, (PWSTR)(std::wstring(NewFilename) + L"/" + FileNameSuffix).c_str(), TempFilenameSTRIndex, SpFs->Filenames);
+				renamefile(TempFilename, (PWSTR)(std::wstring(FileNameParent).replace(0, FileNameLen, NewFilename) + L"/" + FileNameSuffix).c_str(), TempFilenameSTRIndex, SpFs->Filenames);
 				getfilenameindex(TempFilename + 1, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
-				renamefile(TempFilename + 1, (PWSTR)(std::wstring(NewFilename) + L"/" + FileNameSuffix).c_str() + 1, TempFilenameSTRIndex, SpFs->Filenames);
+				renamefile(TempFilename + 1, (PWSTR)(std::wstring(FileNameParent).replace(0, FileNameLen, NewFilename) + L"/" + FileNameSuffix).c_str() + 1, TempFilenameSTRIndex, SpFs->Filenames);
+				Offset += wcslen(std::wstring(FileNameParent).replace(0, FileNameLen, NewFilename).c_str());
+				Offset -= FileNameLen;
 			}
 		}
 	}
