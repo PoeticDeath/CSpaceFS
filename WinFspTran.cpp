@@ -2002,6 +2002,69 @@ static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PV
 	return STATUS_INVALID_DEVICE_REQUEST;
 }
 
+static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, FSP_FSCTL_DIR_INFO* DirInfo)
+{
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+
+	unsigned long long FileContextLen = wcslen(FileCtx->Path);
+	unsigned long long FileNameLen = wcslen(FileName);
+
+	PWSTR Filename = (PWSTR)calloc(FileContextLen + 1 + FileNameLen + 1, sizeof(wchar_t));
+	if (!Filename)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	memcpy(Filename, FileCtx->Path, FileContextLen * sizeof(wchar_t));
+	Filename[FileContextLen] = L'\\';
+	memcpy(Filename + FileContextLen + 1, FileName, FileNameLen * sizeof(wchar_t));
+
+	if (!NT_SUCCESS(FindDuplicate(SpFs, Filename)))
+	{
+		DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + FileNameLen * sizeof(WCHAR));
+		GetFileInfoInternal(SpFs, &DirInfo->FileInfo, Filename);
+		memcpy(DirInfo->FileNameBuf, FileName, DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
+
+		return STATUS_SUCCESS;
+	}
+
+	return STATUS_OBJECT_NAME_NOT_FOUND;
+}
+
+static NTSTATUS Control(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32 ControlCode, PVOID InputBuffer, ULONG InputBufferLength, PVOID OutputBuffer, ULONG OutputBufferLength, PULONG PBytesTransferred)
+{
+	if (CTL_CODE(0x8000 + 'M', 'R', METHOD_BUFFERED, FILE_ANY_ACCESS) == ControlCode)
+	{
+		if (OutputBufferLength != InputBufferLength)
+		{
+			return STATUS_INVALID_PARAMETER;
+		}
+
+		for (PUINT8 P = (PUINT8)InputBuffer, Q = (PUINT8)OutputBuffer, EndP = P + InputBufferLength; EndP > P; P++, Q++)
+		{
+			if (('A' <= *P && *P <= 'M') || ('a' <= *P && *P <= 'm'))
+			{
+				*Q = *P + 13;
+			}
+			else
+				if (('N' <= *P && *P <= 'Z') || ('n' <= *P && *P <= 'z'))
+				{
+					*Q = *P - 13;
+				}
+				else
+				{
+					*Q = *P;
+				}
+		}
+
+		*PBytesTransferred = InputBufferLength;
+		return STATUS_SUCCESS;
+	}
+
+	return STATUS_INVALID_DEVICE_REQUEST;
+}
+
 static NTSTATUS GetEa(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PFILE_FULL_EA_INFORMATION Ea, ULONG EaLength, PULONG PBytesTransferred)
 {
 	return STATUS_INVALID_DEVICE_REQUEST;
@@ -2043,8 +2106,8 @@ static FSP_FILE_SYSTEM_INTERFACE SpFsInterface =
 	SetReparsePoint,
 	DeleteReparsePoint,
 	GetStreamInfo,
-	0,
-	0,
+	GetDirInfoByName,
+	Control,
 	0,
 	0,
 	0,
@@ -2365,6 +2428,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	VolumeParams.PostDispositionWhenNecessaryOnly = 1;
 	VolumeParams.PassQueryDirectoryPattern = 1;
 	VolumeParams.FlushAndPurgeOnCleanup = 1;
+	VolumeParams.DeviceControl = 1;
 	VolumeParams.WslFeatures = 1;
 	VolumeParams.AllowOpenInKernelMode = 1;
 	VolumeParams.RejectIrpPriorToTransact0 = 1;
