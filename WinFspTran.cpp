@@ -2026,9 +2026,11 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext,
 		GetFileInfoInternal(SpFs, &DirInfo->FileInfo, Filename);
 		memcpy(DirInfo->FileNameBuf, FileName, DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
 
+		free(Filename);
 		return STATUS_SUCCESS;
 	}
 
+	free(Filename);
 	return STATUS_OBJECT_NAME_NOT_FOUND;
 }
 
