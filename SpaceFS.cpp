@@ -12,6 +12,10 @@ struct SectorSize
 	unsigned long unused = Sectorsize;
 };
 
+std::map<std::string, std::map<unsigned long, unsigned long long>> partlist;
+std::map<std::string, SectorSize> list;
+bool redetect = true;
+
 inline unsigned upperchar(unsigned c)
 {
 	/*
@@ -298,7 +302,7 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 	return 0;
 }
 
-void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std::string str0, std::string str1, std::string str2, std::string rstr, std::map<std::string, std::map<unsigned long, unsigned long long>>& partlist, std::map<std::string, SectorSize>& list, unsigned long long& usedblocks)
+void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std::string str0, std::string str1, std::string str2, std::string rstr, unsigned long long& usedblocks)
 {
 	if (str0 == "")
 	{
@@ -352,75 +356,79 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 
 int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned long tablesize, char* tablestr, char*& block, unsigned long long& blockstrlen, unsigned long blocksize, unsigned long long& usedblocks)
 {
-	usedblocks = 0;
-	unsigned long long tablelen = 0;
-	unsigned long long tablestrlen = strlen(tablestr);
-	for (unsigned long long i = 0; i < tablestrlen; i++)
+	if (redetect)
 	{
-		if ((tablestr[i] & 0xff) == 46)
+		usedblocks = 0;
+		unsigned long long tablelen = 0;
+		unsigned long long tablestrlen = strlen(tablestr);
+		for (unsigned long long i = 0; i < tablestrlen; i++)
 		{
-			tablelen = i + 1;
-		}
-	}
-	unsigned long long clen = 256;
-	char* cblock = (char*)calloc(clen, 1);
-	char* alc = NULL;
-	unsigned long long cloc = 0;
-	std::string str0;
-	std::string str1;
-	std::string str2;
-	std::string rstr;
-	unsigned step = 0;
-	unsigned range = 0;
-	Sectorsize = sectorsize;
-	std::map<std::string, std::map<unsigned long, unsigned long long>> partlist;
-	std::map<std::string, SectorSize> list;
-	for (unsigned long long i = 0; i < tablelen; i++)
-	{
-		switch (tablestr[i] & 0xff)
-		{
-		case 59: //;
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
-			step++;
-			break;
-		case 46: //.
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
-			addtopartlist(sectorsize, range, step, str0, str1, str2, rstr, partlist, list, usedblocks);
-			step = 0;
-			range = 0;
-			break;
-		case 45: //-
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
-			step = 0;
-			range++;
-			rstr = str0;
-			break;
-		case 44: //,
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
-			addtopartlist(sectorsize, range, step, str0, str1, str2, rstr, partlist, list, usedblocks);
-			step = 0;
-			range = 0;
-			break;
-		default: //0-9
-			if (cloc > clen - 2)
+			if ((tablestr[i] & 0xff) == 46)
 			{
-				clen += 256;
-				alc = (char*)realloc(cblock, clen);
-				if (!alc)
-				{
-					free(cblock);
-					return 1;
-				}
-				cblock = alc;
-				alc = NULL;
+				tablelen = i + 1;
 			}
-			cblock[cloc] = tablestr[i];
-			cblock[cloc + 1] = 0;
-			cloc++;
-			break;
 		}
+		unsigned long long clen = 256;
+		char* cblock = (char*)calloc(clen, 1);
+		char* alc = NULL;
+		unsigned long long cloc = 0;
+		std::string str0;
+		std::string str1;
+		std::string str2;
+		std::string rstr;
+		unsigned step = 0;
+		unsigned range = 0;
+		Sectorsize = sectorsize;
+		partlist.clear();
+		list.clear();
+		for (unsigned long long i = 0; i < tablelen; i++)
+		{
+			switch (tablestr[i] & 0xff)
+			{
+			case 59: //;
+				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				step++;
+				break;
+			case 46: //.
+				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				addtopartlist(sectorsize, range, step, str0, str1, str2, rstr, usedblocks);
+				step = 0;
+				range = 0;
+				break;
+			case 45: //-
+				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				step = 0;
+				range++;
+				rstr = str0;
+				break;
+			case 44: //,
+				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				addtopartlist(sectorsize, range, step, str0, str1, str2, rstr, usedblocks);
+				step = 0;
+				range = 0;
+				break;
+			default: //0-9
+				if (cloc > clen - 2)
+				{
+					clen += 256;
+					alc = (char*)realloc(cblock, clen);
+					if (!alc)
+					{
+						free(cblock);
+						return 1;
+					}
+					cblock = alc;
+					alc = NULL;
+				}
+				cblock[cloc] = tablestr[i];
+				cblock[cloc + 1] = 0;
+				cloc++;
+				break;
+			}
+		}
+		free(cblock);
 	}
-	free(cblock);
+	redetect = false;
 	unsigned long bytecount = 0;
 	unsigned long o = 0;
 	std::string s;
@@ -462,11 +470,12 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 				if (blocksize % sectorsize)
 				{
 					s = t + ";" + std::to_string(o - bytecount) + ";" + std::to_string(o);
+					addtopartlist(sectorsize, 0, 2, t, std::to_string(o - bytecount), std::to_string(o), "", usedblocks);
 				}
 				else
 				{
 					s = t;
-					usedblocks++;
+					addtopartlist(sectorsize, 0, 0, t, "", "", "", usedblocks);
 				}
 				break;
 			}
@@ -721,6 +730,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 	}
 	free(alc1);
 	free(alc2);
+	redetect = true;
 	return 0;
 }
 
