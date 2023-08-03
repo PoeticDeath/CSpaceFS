@@ -1170,10 +1170,10 @@ static VOID Close(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext)
 	if (opened[std::wstring(FileCtx->Path)])
 	{
 		opened[std::wstring(FileCtx->Path)]--;
-	}
-	if (!opened[std::wstring(FileCtx->Path)])
-	{
-		opened.erase(std::wstring(FileCtx->Path));
+		if (!opened[std::wstring(FileCtx->Path)])
+		{
+			opened.erase(std::wstring(FileCtx->Path));
+		}
 	}
 	free(FileCtx->Path);
 	free(FileCtx);
