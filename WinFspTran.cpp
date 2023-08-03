@@ -798,6 +798,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateO
 
 	opened[std::wstring(Filename)]++;
 	allocationsizes[std::wstring(Filename)] = 0;
+	allocationsizes.erase(std::wstring(Filename));
 	return GetFileInfoInternal(SpFs, FileInfo, Filename);
 }
 
@@ -1165,6 +1166,10 @@ static VOID Close(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext)
 {
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	opened[std::wstring(FileCtx->Path)]--;
+	if (!opened[std::wstring(FileCtx->Path)])
+	{
+		opened.erase(std::wstring(FileCtx->Path));
+	}
 	free(FileCtx->Path);
 	free(FileCtx);
 	return;
