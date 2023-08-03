@@ -806,7 +806,9 @@ int desimp(char* charmap, char*& tablestr)
 	unsigned long long tablestrlen = strlen(tablestr);
 	char* newtablestr = (char*)calloc(tablestrlen + 1, 1);
 	if (!newtablestr)
+	{
 		return 1;
+	}
 	unsigned long long newloc = 0;
 	unsigned long long tablelen = 0;
 	unsigned long long newtablelen = tablestrlen;

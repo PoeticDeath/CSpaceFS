@@ -2449,7 +2449,9 @@ NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 	for (argp = argv + 1, arge = argv + argc; arge > argp; argp++)
 	{
 		if (L'-' != argp[0][0])
+		{
 			break;
+		}
 		switch (argp[0][1])
 		{
 		case L'?':
