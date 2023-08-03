@@ -94,6 +94,7 @@ void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& l
 	str = alc;
 	alc = NULL;
 	memcpy(str, bytes, len / 2);
+	str[len / 2] = 0;
 	free(bytes);
 }
 
@@ -533,6 +534,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		index += blockstrlen + o;
 		tablestrlen += blockstrlen + o;
 		o = 1;
+		tablestr[index + alc1len] = 0;
 		cleantablestr(charmap, tablestr);
 	}
 	if (size % sectorsize)
@@ -563,6 +565,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		tablestr = alc2;
 		alc2 = NULL;
 		index += blockstrlen + o;
+		tablestr[index + alc1len] = 0;
 		cleantablestr(charmap, tablestr);
 	}
 	free(block);
@@ -1100,8 +1103,7 @@ int desimp(char* charmap, char*& tablestr)
 		}
 	}
 	free(cblock);
-	unsigned long long newtablestrlen = strlen(newtablestr);
-	char* alc1 = (char*)realloc(tablestr, newtablestrlen + 1);
+	char* alc1 = (char*)realloc(tablestr, newloc + 1);
 	if (!alc1)
 	{
 		free(newtablestr);
@@ -1109,7 +1111,8 @@ int desimp(char* charmap, char*& tablestr)
 	}
 	tablestr = alc1;
 	alc1 = NULL;
-	memcpy(tablestr, newtablestr, newtablestrlen);
+	memcpy(tablestr, newtablestr, newloc);
+	tablestr[newloc] = 0;
 	free(newtablestr);
 	cleantablestr(charmap, tablestr);
 	return 0;
@@ -1496,15 +1499,15 @@ int simp(char* charmap, char*& tablestr)
 		}
 	}
 	free(cblock);
-	unsigned long long newtablestrlen = strlen(newtablestr);
-	char* alc1 = (char*)realloc(tablestr, newtablestrlen + 1);
+	char* alc1 = (char*)realloc(tablestr, newloc + 1);
 	if (!alc1)
 	{
 		return 1;
 	}
 	tablestr = alc1;
 	alc1 = NULL;
-	memcpy(tablestr, newtablestr, newtablestrlen);
+	memcpy(tablestr, newtablestr, newloc);
+	tablestr[newloc] = 0;
 	free(newtablestr);
 	cleantablestr(charmap, tablestr);
 	return 0;
@@ -1601,7 +1604,7 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 			break;
 		}
 	}
-	alc = (char*)realloc(filenames, oldlen + filestrlen + 2);
+	alc = (char*)realloc(filenames, oldlen + filestrlen + 3);
 	if (!alc)
 	{
 		free(file);
@@ -1612,6 +1615,7 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 	strcpy_s(filenames + oldlen, filestrlen + 1, file);
 	filenames[oldlen + filestrlen] = 255;
 	filenames[oldlen + filestrlen + 1] = 254;
+	filenames[oldlen + filestrlen + 2] = 0;
 	free(file);
 	unsigned long long tablelen = 0;
 	unsigned long long tablestrlen = strlen(tablestr);
@@ -1622,7 +1626,7 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 			tablelen = i + 1;
 		}
 	}
-	alc = (char*)realloc(tablestr, tablelen + 1);
+	alc = (char*)realloc(tablestr, tablelen + 2);
 	if (!alc)
 	{
 		return 1;
@@ -1630,6 +1634,7 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 	tablestr = alc;
 	alc = NULL;
 	tablestr[tablelen] = 46;
+	tablestr[tablelen + 1] = 0;
 	char* gum = (char*)calloc((filenamecount + 1) * 11, 1);
 	if (!gum)
 	{
@@ -1735,6 +1740,7 @@ int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenam
 		}
 		filenames = alc;
 		alc = NULL;
+		filenames[oldlen + newfilenamelen - oldfilenamelen] = 0;
 	}
 	char* coldfilename = (char*)calloc(oldfilenamelen + 1, 1);
 	char* cnewfilename = (char*)calloc(newfilenamelen + 1, 1);
