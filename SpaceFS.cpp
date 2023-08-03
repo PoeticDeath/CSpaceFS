@@ -1118,7 +1118,8 @@ int desimp(char* charmap, char*& tablestr)
 int simp(char* charmap, char*& tablestr)
 {
 	unsigned long long tablestrlen = strlen(tablestr);
-	char* newtablestr = (char*)calloc(tablestrlen + 1, 1);
+	unsigned long long newtablelen = tablestrlen;
+	char* newtablestr = (char*)calloc(newtablelen + 1, 1);
 	unsigned long long newloc = 0;
 	unsigned long long tablelen = 0;
 	for (unsigned long long i = 0; i < tablestrlen; i++)
@@ -1152,21 +1153,86 @@ int simp(char* charmap, char*& tablestr)
 				if (newtablestr[newloc] == 45)
 				{
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 					for (unsigned long long i = 0; i < rstr.length(); i++)
 					{
 						newtablestr[newloc] = rstr[i];
 						newloc++;
+						if (newloc > newtablelen - 2)
+						{
+							newtablelen += 256;
+							alc = (char*)realloc(newtablestr, newtablelen);
+							if (!alc)
+							{
+								free(cblock);
+								free(newtablestr);
+								return 1;
+							}
+							newtablestr = alc;
+							alc = NULL;
+						}
 					}
 					newtablestr[newloc] = 44;
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 				for (unsigned long long i = 0; i < str0.length(); i++)
 				{
 					newtablestr[newloc] = str0[i];
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 				newtablestr[newloc] = 46;
 				newloc++;
+				if (newloc > newtablelen - 2)
+				{
+					newtablelen += 256;
+					alc = (char*)realloc(newtablestr, newtablelen);
+					if (!alc)
+					{
+						free(cblock);
+						free(newtablestr);
+						return 1;
+					}
+					newtablestr = alc;
+					alc = NULL;
+				}
 			}
 			else
 			{
@@ -1176,33 +1242,137 @@ int simp(char* charmap, char*& tablestr)
 					newtablestr[newloc] = 45;
 				}
 				newloc++;
+				if (newloc > newtablelen - 2)
+				{
+					newtablelen += 256;
+					alc = (char*)realloc(newtablestr, newtablelen);
+					if (!alc)
+					{
+						free(cblock);
+						free(newtablestr);
+						return 1;
+					}
+					newtablestr = alc;
+					alc = NULL;
+				}
 				for (unsigned long long i = 0; i < str0.length(); i++)
 				{
 					newtablestr[newloc] = str0[i];
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 				newtablestr[newloc] = 46;
 				newloc++;
+				if (newloc > newtablelen - 2)
+				{
+					newtablelen += 256;
+					alc = (char*)realloc(newtablestr, newtablelen);
+					if (!alc)
+					{
+						free(cblock);
+						free(newtablestr);
+						return 1;
+					}
+					newtablestr = alc;
+					alc = NULL;
+				}
 			}
 			if (step)
 			{
 				newloc--;
 				newtablestr[newloc] = 59;
 				newloc++;
+				if (newloc > newtablelen - 2)
+				{
+					newtablelen += 256;
+					alc = (char*)realloc(newtablestr, newtablelen);
+					if (!alc)
+					{
+						free(cblock);
+						free(newtablestr);
+						return 1;
+					}
+					newtablestr = alc;
+					alc = NULL;
+				}
 				for (unsigned long long i = 0; i < str1.length(); i++)
 				{
 					newtablestr[newloc] = str1[i];
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 				newtablestr[newloc] = 59;
 				newloc++;
+				if (newloc > newtablelen - 2)
+				{
+					newtablelen += 256;
+					alc = (char*)realloc(newtablestr, newtablelen);
+					if (!alc)
+					{
+						free(cblock);
+						free(newtablestr);
+						return 1;
+					}
+					newtablestr = alc;
+					alc = NULL;
+				}
 				for (unsigned long long i = 0; i < str2.length(); i++)
 				{
 					newtablestr[newloc] = str2[i];
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 				newtablestr[newloc] = 46;
 				newloc++;
+				if (newloc > newtablelen - 2)
+				{
+					newtablelen += 256;
+					alc = (char*)realloc(newtablestr, newtablelen);
+					if (!alc)
+					{
+						free(cblock);
+						free(newtablestr);
+						return 1;
+					}
+					newtablestr = alc;
+					alc = NULL;
+				}
 			}
 			rstr = "";
 			step = 0;
@@ -1214,21 +1384,86 @@ int simp(char* charmap, char*& tablestr)
 				if (newtablestr[newloc] == 45)
 				{
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 					for (unsigned long long i = 0; i < rstr.length(); i++)
 					{
 						newtablestr[newloc] = rstr[i];
 						newloc++;
+						if (newloc > newtablelen - 2)
+						{
+							newtablelen += 256;
+							alc = (char*)realloc(newtablestr, newtablelen);
+							if (!alc)
+							{
+								free(cblock);
+								free(newtablestr);
+								return 1;
+							}
+							newtablestr = alc;
+							alc = NULL;
+						}
 					}
 					newtablestr[newloc] = 44;
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 				for (unsigned long long i = 0; i < str0.length(); i++)
 				{
 					newtablestr[newloc] = str0[i];
 					newloc++;
+					if (newloc > newtablelen - 2)
+					{
+						newtablelen += 256;
+						alc = (char*)realloc(newtablestr, newtablelen);
+						if (!alc)
+						{
+							free(cblock);
+							free(newtablestr);
+							return 1;
+						}
+						newtablestr = alc;
+						alc = NULL;
+					}
 				}
 				newtablestr[newloc] = 44;
 				newloc++;
+				if (newloc > newtablelen - 2)
+				{
+					newtablelen += 256;
+					alc = (char*)realloc(newtablestr, newtablelen);
+					if (!alc)
+					{
+						free(cblock);
+						free(newtablestr);
+						return 1;
+					}
+					newtablestr = alc;
+					alc = NULL;
+				}
 			}
 			else
 			{
