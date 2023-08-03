@@ -576,7 +576,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 	unsigned long long blockstrlen = 0;
 	unsigned long long alc2len = 0;
 	char* alc = NULL;
-	char* alc1 = (char*)calloc(tablestrlen - index, 1);
+	char* alc1 = (char*)calloc(tablestrlen - index + 1, 1);
 	char* alc2 = (char*)calloc(1, 1);
 	if (!alc1)
 	{
@@ -586,7 +586,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 	{
 		alc1[i] = tablestr[index + i];
 	}
-	unsigned long long alc1len = strlen(alc1);
+	unsigned long long alc1len = strlen(alc1) + 1;
 	if (size % sectorsize)
 	{
 		tablestrlen = strlen(tablestr);
