@@ -1387,6 +1387,13 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 			tablelen = i + 1;
 		}
 	}
+	alc = (char*)realloc(tablestr, tablelen + 1);
+	if (!alc)
+	{
+		return 1;
+	}
+	tablestr = alc;
+	alc = NULL;
 	tablestr[tablelen] = 46;
 	char* gum = (char*)calloc((filenamecount + 1) * 11, 1);
 	if (!gum)
