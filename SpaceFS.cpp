@@ -542,8 +542,8 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		alc2 = NULL;
 		index += blockstrlen + o;
 		tablestrlen += blockstrlen + o;
+		tablestr[index + alc1len + o] = 0;
 		o = 1;
-		tablestr[index + alc1len] = 0;
 		cleantablestr(charmap, tablestr);
 	}
 	if (size % sectorsize)
@@ -574,7 +574,7 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		tablestr = alc2;
 		alc2 = NULL;
 		index += blockstrlen + o;
-		tablestr[index + alc1len] = 0;
+		tablestr[index + alc1len + o] = 0;
 		cleantablestr(charmap, tablestr);
 	}
 	free(block);
