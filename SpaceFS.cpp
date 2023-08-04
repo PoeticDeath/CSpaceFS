@@ -70,7 +70,7 @@ void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& l
 	if (len % 2)
 	{
 		len++;
-		char* alc = (char*)realloc(str, len);
+		char* alc = (char*)realloc(str, len + 1);
 		if (!alc)
 		{
 			return;
