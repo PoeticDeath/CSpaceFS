@@ -1177,9 +1177,20 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 static VOID Close(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext)
 {
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	if (allocationsizes[std::wstring(FileCtx->Path)])
+	{
+		allocationsizes.erase(std::wstring(FileCtx->Path));
+	}
 	if (opened[std::wstring(FileCtx->Path)])
 	{
-		opened[std::wstring(FileCtx->Path)]--;
+		if (opened[std::wstring(FileCtx->Path)] != 1)
+		{
+			opened[std::wstring(FileCtx->Path)]--;
+		}
+		else
+		{
+			opened.erase(std::wstring(FileCtx->Path));
+		}
 	}
 	free(FileCtx->Path);
 	free(FileCtx);
