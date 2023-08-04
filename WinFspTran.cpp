@@ -430,6 +430,8 @@ static NTSTATUS GetFileInfoInternal(SPFS* SpFs, FSP_FSCTL_FILE_INFO* FileInfo, P
 	}
 	memcpy(NoStreamFileName, FileName, FileNameLen * sizeof(wchar_t));
 	PWSTR Suffix = NULL;
+	ReplaceBSWFS(NoStreamFileName);
+	std::wstring Path = NoStreamFileName;
 	RemoveStream(NoStreamFileName, Suffix);
 	unsigned long long NoStreamFileNameIndex = 0;
 	unsigned long long NoStreamFileNameSTRIndex = 0;
@@ -451,13 +453,13 @@ static NTSTATUS GetFileInfoInternal(SPFS* SpFs, FSP_FSCTL_FILE_INFO* FileInfo, P
 	FileInfo->FileAttributes = winattrs;
 	FileInfo->ReparseTag = 0;
 	FileInfo->FileSize = FileSize;
-	if (!allocationsizes[FileName])
+	if (!allocationsizes[Path])
 	{
 		FileInfo->AllocationSize = (FileSize + SpFs->SectorSize - 1) / SpFs->SectorSize * SpFs->SectorSize;
 	}
 	else
 	{
-		FileInfo->AllocationSize = allocationsizes[FileName];
+		FileInfo->AllocationSize = allocationsizes[Path];
 	}
 	FileInfo->CreationTime = CTime + (static_cast<unsigned long long>(2) * (CTime > 116444736000000000)) + (CTime == 279172874304) + (static_cast<unsigned long long>(3) * (CTime == 287762808896));
 	FileInfo->LastAccessTime = ATime + (static_cast<unsigned long long>(2) * (ATime > 116444736000000000)) + (ATime == 279172874304) + (static_cast<unsigned long long>(3) * (ATime == 287762808896));
@@ -777,8 +779,9 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 	free(SecurityParentName);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 
-	opened[std::wstring(Filename)]++;
-	allocationsizes[std::wstring(Filename)] = AllocationSize;
+	std::wstring Path = Filename;
+	opened[Path]++;
+	allocationsizes[Path] = AllocationSize;
 	return GetFileInfoInternal(SpFs, FileInfo, Filename);
 }
 
@@ -804,10 +807,11 @@ static NTSTATUS Open(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 CreateO
 	FileContext->Path = Filename;
 	*PFileContext = FileContext;
 
-	opened[std::wstring(Filename)]++;
-	if (allocationsizes[std::wstring(Filename)])
+	std::wstring Path = Filename;
+	opened[Path]++;
+	if (allocationsizes[Path])
 	{
-		allocationsizes.erase(std::wstring(Filename));
+		allocationsizes.erase(Path);
 	}
 	return GetFileInfoInternal(SpFs, FileInfo, Filename);
 }
@@ -848,6 +852,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 	unsigned long long NoStreamFileNameIndex = 0;
 	unsigned long long NoStreamFileNameSTRIndex = 0;
 	getfilenameindex(FileNameNoStream, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
+	std::wstring Path = TempFilename;
 
 	for (unsigned long long i = 0; i < SpFs->FilenameCount + O; i++)
 	{
@@ -889,9 +894,10 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 		RemoveStream(FileNameNoStream, Suffix);
 		if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLen) && wcslen(FileNameNoStream) == FileNameLen)
 		{
-			if (std::wstring(TempFilename).find(L":") != std::string::npos)
+			Path = TempFilename;
+			if (Path.find(L":") != std::string::npos)
 			{
-				if (!opened[std::wstring(TempFilename)])
+				if (!opened[Path])
 				{
 					getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
 					TempIndex = gettablestrindex(TempFilename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
@@ -1177,19 +1183,20 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 static VOID Close(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext)
 {
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
-	if (allocationsizes[std::wstring(FileCtx->Path)])
+	std::wstring Path = FileCtx->Path;
+	if (opened[Path])
 	{
-		allocationsizes.erase(std::wstring(FileCtx->Path));
-	}
-	if (opened[std::wstring(FileCtx->Path)])
-	{
-		if (opened[std::wstring(FileCtx->Path)] != 1)
+		if (opened[Path] != 1)
 		{
-			opened[std::wstring(FileCtx->Path)]--;
+			opened[Path]--;
 		}
 		else
 		{
-			opened.erase(std::wstring(FileCtx->Path));
+			opened.erase(Path);
+			if (allocationsizes[Path])
+			{
+				allocationsizes.erase(Path);
+			}
 		}
 	}
 	free(FileCtx->Path);
