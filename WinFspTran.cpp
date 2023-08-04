@@ -366,9 +366,9 @@ static VOID GetParentName(PWSTR& FileName, PWSTR& Suffix)
 static NTSTATUS FindDuplicate(SPFS* SpFs, PWSTR FileName)
 {
 	unsigned long long Offset = 0;
-	unsigned long long FileNameLen = wcslen(FileName), FileNameLenT = wcslen(FileName);
+	unsigned long long FileNameLen = wcslen(FileName), FileNameLenT = max(FileNameLen, 0xff);
 	PWSTR ALC = NULL;
-	PWSTR Filename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	PWSTR Filename = (PWSTR)calloc(FileNameLenT + 1, sizeof(wchar_t));
 	if (!Filename)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
@@ -379,16 +379,10 @@ static NTSTATUS FindDuplicate(SPFS* SpFs, PWSTR FileName)
 		unsigned long long j = 0;
 		for (;; j++)
 		{
-			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			if (j > FileNameLenT - 3)
 			{
-				Offset += j + 1;
-				break;
-			}
-			Filename[j] = SpFs->Filenames[Offset + j] & 0xff;
-			if (j > FileNameLen - 1)
-			{
-				FileNameLen += 0xff;
-				ALC = (PWSTR)realloc(Filename, (FileNameLen + 1) * sizeof(wchar_t));
+				FileNameLenT += 0xff;
+				ALC = (PWSTR)realloc(Filename, (FileNameLenT + 1) * sizeof(wchar_t));
 				if (!ALC)
 				{
 					free(Filename);
@@ -397,10 +391,16 @@ static NTSTATUS FindDuplicate(SPFS* SpFs, PWSTR FileName)
 				Filename = ALC;
 				ALC = NULL;
 			}
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			{
+				Offset += j + 1;
+				break;
+			}
+			Filename[j] = SpFs->Filenames[Offset + j] & 0xff;
 		}
 		Filename[j] = 0;
 
-		if (!wcsincmp(Filename, FileName, FileNameLenT) && wcslen(Filename) == FileNameLenT)
+		if (!wcsincmp(Filename, FileName, FileNameLen) && wcslen(Filename) == FileNameLen)
 		{
 			free(Filename);
 			return STATUS_OBJECT_NAME_COLLISION;
@@ -826,16 +826,16 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 
 	unsigned long long Offset = 0;
-	unsigned long long FileNameLen = wcslen(FileCtx->Path), FileNameLenT = wcslen(FileCtx->Path);
+	unsigned long long FileNameLen = wcslen(FileCtx->Path), FileNameLenT = max(FileNameLen, 0xff);
 	PWSTR ALC = NULL;
-	PWSTR TempFilename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	PWSTR TempFilename = (PWSTR)calloc(FileNameLenT + 1, sizeof(wchar_t));
 	if (!TempFilename)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
 	unsigned long long O = 0;
-	PWSTR FileNameNoStream = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	PWSTR FileNameNoStream = (PWSTR)calloc(FileNameLenT + 1, sizeof(wchar_t));
 	if (!FileNameNoStream)
 	{
 		free(TempFilename);
@@ -854,16 +854,10 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 		unsigned long long j = 0;
 		for (;; j++)
 		{
-			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			if (j > FileNameLenT - 3)
 			{
-				Offset += j + 1;
-				break;
-			}
-			TempFilename[j] = SpFs->Filenames[Offset + j] & 0xff;
-			if (j > FileNameLen - 1)
-			{
-				FileNameLen += 0xff;
-				ALC = (PWSTR)realloc(TempFilename, (FileNameLen + 1) * sizeof(wchar_t));
+				FileNameLenT += 0xff;
+				ALC = (PWSTR)realloc(TempFilename, (FileNameLenT + 1) * sizeof(wchar_t));
 				if (!ALC)
 				{
 					free(TempFilename);
@@ -872,7 +866,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 				}
 				TempFilename = ALC;
 				ALC = NULL;
-				ALC = (PWSTR)realloc(FileNameNoStream, (FileNameLen + 1) * sizeof(wchar_t));
+				ALC = (PWSTR)realloc(FileNameNoStream, (FileNameLenT + 1) * sizeof(wchar_t));
 				if (!ALC)
 				{
 					free(TempFilename);
@@ -882,12 +876,18 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 				FileNameNoStream = ALC;
 				ALC = NULL;
 			}
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			{
+				Offset += j + 1;
+				break;
+			}
+			TempFilename[j] = SpFs->Filenames[Offset + j] & 0xff;
 		}
 		TempFilename[j] = 0;
 
 		memcpy(FileNameNoStream, TempFilename, (j + 1) * sizeof(wchar_t));
 		RemoveStream(FileNameNoStream, Suffix);
-		if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLenT) && wcslen(FileNameNoStream) == FileNameLenT)
+		if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLen) && wcslen(FileNameNoStream) == FileNameLen)
 		{
 			if (std::wstring(TempFilename).find(L":") != std::string::npos)
 			{
@@ -939,20 +939,20 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR 
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	unsigned long long Offset = 0;
-	unsigned long long FileNameLen = wcslen(FileCtx->Path), FileNameLenT = wcslen(FileCtx->Path);
+	unsigned long long FileNameLen = wcslen(FileCtx->Path), FileNameLenT = max(FileNameLen, 0xff);
 	PWSTR ALC = NULL;
-	PWSTR Filename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	PWSTR Filename = (PWSTR)calloc(FileNameLenT + 1, sizeof(wchar_t));
 	if (!Filename)
 	{
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-	PWSTR FileNameParent = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	PWSTR FileNameParent = (PWSTR)calloc(FileNameLenT + 1, sizeof(wchar_t));
 	if (!FileNameParent)
 	{
 		free(Filename);
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
-	PWSTR FileNameSuffix = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	PWSTR FileNameSuffix = (PWSTR)calloc(FileNameLenT + 1, sizeof(wchar_t));
 	if (!FileNameSuffix)
 	{
 		free(Filename);
@@ -965,16 +965,10 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR 
 		unsigned long long j = 0;
 		for (;; j++)
 		{
-			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			if (j > FileNameLenT - 3)
 			{
-				Offset += j + 1;
-				break;
-			}
-			Filename[j] = SpFs->Filenames[Offset + j] & 0xff;
-			if (j > FileNameLen - 1)
-			{
-				FileNameLen += 0xff;
-				ALC = (PWSTR)realloc(Filename, (FileNameLen + 1) * sizeof(wchar_t));
+				FileNameLenT += 0xff;
+				ALC = (PWSTR)realloc(Filename, (FileNameLenT + 1) * sizeof(wchar_t));
 				if (!ALC)
 				{
 					free(Filename);
@@ -984,7 +978,7 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR 
 				}
 				Filename = ALC;
 				ALC = NULL;
-				ALC = (PWSTR)realloc(FileNameParent, (FileNameLen + 1) * sizeof(wchar_t));
+				ALC = (PWSTR)realloc(FileNameParent, (FileNameLenT + 1) * sizeof(wchar_t));
 				if (!ALC)
 				{
 					free(Filename);
@@ -994,7 +988,7 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR 
 				}
 				FileNameParent = ALC;
 				ALC = NULL;
-				ALC = (PWSTR)realloc(FileNameSuffix, (FileNameLen + 1) * sizeof(wchar_t));
+				ALC = (PWSTR)realloc(FileNameSuffix, (FileNameLenT + 1) * sizeof(wchar_t));
 				if (!ALC)
 				{
 					free(Filename);
@@ -1005,12 +999,18 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR 
 				FileNameSuffix = ALC;
 				ALC = NULL;
 			}
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			{
+				Offset += j + 1;
+				break;
+			}
+			Filename[j] = SpFs->Filenames[Offset + j] & 0xff;
 		}
 		Filename[j] = 0;
 
 		memcpy(FileNameParent, Filename, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
-		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLenT) && wcslen(FileNameParent) == FileNameLenT)
+		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLen) && wcslen(FileNameParent) == FileNameLen)
 		{
 			if (wcslen(FileNameSuffix))
 			{
@@ -1100,14 +1100,14 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 		unsigned long long TempFilenameSTRIndex = 0;
 		unsigned long long Offset = 0;
 		unsigned long long O = 0;
-		unsigned long long FileNameLen = wcslen(FileCtx->Path), FileNameLenT = wcslen(FileCtx->Path);
+		unsigned long long FileNameLen = wcslen(FileCtx->Path), FileNameLenT = max(FileNameLen, 0xff);
 		PWSTR ALC = NULL;
-		PWSTR Filename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+		PWSTR Filename = (PWSTR)calloc(FileNameLenT + 1, sizeof(wchar_t));
 		if (!Filename)
 		{
 			return;
 		}
-		PWSTR FileNameNoStream = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+		PWSTR FileNameNoStream = (PWSTR)calloc(FileNameLenT + 1, sizeof(wchar_t));
 		if (!FileNameNoStream)
 		{
 			free(Filename);
@@ -1119,13 +1119,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 			unsigned long long j = 0;
 			for (;; j++)
 			{
-				if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
-				{
-					Offset += j + 1;
-					break;
-				}
-				Filename[j] = SpFs->Filenames[Offset + j] & 0xff;
-				if (j > FileNameLenT - 1)
+				if (j > FileNameLenT - 3)
 				{
 					FileNameLenT += 0xff;
 					ALC = (PWSTR)realloc(Filename, (FileNameLenT + 1) * sizeof(wchar_t));
@@ -1147,6 +1141,12 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 					FileNameNoStream = ALC;
 					ALC = NULL;
 				}
+				if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+				{
+					Offset += j + 1;
+					break;
+				}
+				Filename[j] = SpFs->Filenames[Offset + j] & 0xff;
 			}
 			Filename[j] = 0;
 
@@ -1487,7 +1487,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	renamefile(SecurityName, NewSecurityName, FilenameSTRIndex, SpFs->Filenames);
 
 	unsigned long long Offset = 0;
-	unsigned long long FileNameLenT = FileNameLen;
+	unsigned long long FileNameLenT = max(FileNameLen, 0xff);
 	PWSTR ALC = NULL;
 	PWSTR TempFilename = (PWSTR)calloc(FileNameLenT + 1, sizeof(wchar_t));
 	if (!TempFilename)
@@ -1522,13 +1522,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 		unsigned long long j = 0;
 		for (;; j++)
 		{
-			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
-			{
-				Offset += j + 1;
-				break;
-			}
-			TempFilename[j] = SpFs->Filenames[Offset + j] & 0xff;
-			if (j > FileNameLenT - 1)
+			if (j > FileNameLenT - 3)
 			{
 				FileNameLenT += 0xff;
 				ALC = (PWSTR)realloc(TempFilename, (FileNameLenT + 1) * sizeof(wchar_t));
@@ -1571,6 +1565,12 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 				FileNameSuffix = ALC;
 				ALC = NULL;
 			}
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			{
+				Offset += j + 1;
+				break;
+			}
+			TempFilename[j] = SpFs->Filenames[Offset + j] & 0xff;
 		}
 		TempFilename[j] = 0;
 
@@ -1609,13 +1609,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 		unsigned long long j = 0;
 		for (;; j++)
 		{
-			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
-			{
-				Offset += j + 1;
-				break;
-			}
-			TempFilename[j] = SpFs->Filenames[Offset + j] & 0xff;
-			if (j > FileNameLenT - 1)
+			if (j > FileNameLenT - 3)
 			{
 				FileNameLenT += 0xff;
 				ALC = (PWSTR)realloc(TempFilename, (FileNameLenT + 1) * sizeof(wchar_t));
@@ -1647,12 +1641,18 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 				FileNameNoStream = ALC;
 				ALC = NULL;
 			}
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			{
+				Offset += j + 1;
+				break;
+			}
+			TempFilename[j] = SpFs->Filenames[Offset + j] & 0xff;
 		}
 		TempFilename[j] = 0;
 
 		memcpy(FileNameNoStream, TempFilename, (j + 1) * sizeof(wchar_t));
 		RemoveStream(FileNameNoStream, Suffix);
-		if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLenT) && wcslen(FileNameNoStream) == FileNameLenT)
+		if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLen) && wcslen(FileNameNoStream) == FileNameLen)
 		{
 			if (std::wstring(TempFilename).find(L":") != std::string::npos)
 			{
@@ -1879,7 +1879,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 	}
 
 	unsigned long long Offset = 0;
-	unsigned long long FileNameLenT = FileNameLen;
+	unsigned long long FileNameLenT = max(FileNameLen, 0xff);
 	PWSTR ALC = NULL;
 	PWSTR FileName = (PWSTR)calloc(FileNameLenT + 1, sizeof(wchar_t));
 	if (!FileName)
@@ -1911,13 +1911,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 		unsigned long long j = 0;
 		for (;; j++)
 		{
-			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
-			{
-				Offset += j + 1;
-				break;
-			}
-			FileName[j] = SpFs->Filenames[Offset + j] & 0xff;
-			if (j > FileNameLenT - 1)
+			if (j > FileNameLenT - 3)
 			{
 				FileNameLenT += 0xff;
 				ALC = (PWSTR)realloc(FileName, (FileNameLenT + 1) * sizeof(wchar_t));
@@ -1951,6 +1945,12 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 				FileNameSuffix = ALC;
 				ALC = NULL;
 			}
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			{
+				Offset += j + 1;
+				break;
+			}
+			FileName[j] = SpFs->Filenames[Offset + j] & 0xff;
 		}
 		FileName[j] = 0;
 
@@ -2089,7 +2089,7 @@ static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PV
 	free(FileInfo);
 
 	unsigned long long Offset = 0;
-	unsigned long long FileNameLenT = FileNameLen;
+	unsigned long long FileNameLenT = max(FileNameLen, 0xff);
 	PWSTR ALC = NULL;
 	PWSTR FileName = (PWSTR)calloc(FileNameLenT + 1, sizeof(wchar_t));
 	if (!FileName)
@@ -2110,13 +2110,7 @@ static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PV
 		unsigned long long j = 0;
 		for (;; j++)
 		{
-			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
-			{
-				Offset += j + 1;
-				break;
-			}
-			FileName[j] = SpFs->Filenames[Offset + j] & 0xff;
-			if (j > FileNameLenT - 1)
+			if (j > FileNameLenT - 3)
 			{
 				FileNameLenT += 0xff;
 				ALC = (PWSTR)realloc(FileName, (FileNameLenT + 1) * sizeof(wchar_t));
@@ -2140,7 +2134,12 @@ static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PV
 				Filename = ALC;
 				ALC = NULL;
 			}
-
+			if ((SpFs->Filenames[Offset + j] & 0xff) == 255 || (SpFs->Filenames[Offset + j] & 0xff) == 42)
+			{
+				Offset += j + 1;
+				break;
+			}
+			FileName[j] = SpFs->Filenames[Offset + j] & 0xff;
 		}
 		FileName[j] = 0;
 

@@ -216,7 +216,7 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 		return 0;
 	}
 	unsigned long long o = 0;
-	unsigned long long clen = 256;
+	unsigned long long clen = 0xff;
 	char* cblock = (char*)calloc(clen, 1);
 	if (!cblock)
 	{
@@ -281,7 +281,7 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 		default: //0-9
 			if (cloc > clen - 2)
 			{
-				clen += 256;
+				clen += 0xff;
 				alc = (char*)realloc(cblock, clen);
 				if (!alc)
 				{
@@ -368,7 +368,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 				tablelen = i + 1;
 			}
 		}
-		unsigned long long clen = 256;
+		unsigned long long clen = 0xff;
 		char* cblock = (char*)calloc(clen, 1);
 		char* alc = NULL;
 		unsigned long long cloc = 0;
@@ -410,7 +410,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 			default: //0-9
 				if (cloc > clen - 2)
 				{
-					clen += 256;
+					clen += 0xff;
 					alc = (char*)realloc(cblock, clen);
 					if (!alc)
 					{
@@ -737,7 +737,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filenamecount, unsigned long long& filenameindex, unsigned long long& filenamestrindex)
 {
 	unsigned long long filenamesize = wcslen(filename);
-	unsigned long long tempnamesize = 256;
+	unsigned long long tempnamesize = max(filenamesize, 0xff);
 	filenameindex = 0;
 	filenamestrindex = 0;
 	wchar_t* file = (wchar_t*)calloc(tempnamesize + 1, sizeof(wchar_t));
@@ -768,7 +768,7 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 			file[i] = filenames[filenamestrindex + i];
 			if (i > tempnamesize - 2)
 			{
-				tempnamesize += 256;
+				tempnamesize += 0xff;
 				wchar_t* alc = (wchar_t*)realloc(file, (tempnamesize + 1) * sizeof(wchar_t));
 				if (!alc)
 				{
@@ -833,7 +833,7 @@ int desimp(char* charmap, char*& tablestr)
 		}
 	}
 	char* alc = NULL;
-	unsigned long long clen = 256;
+	unsigned long long clen = 0xff;
 	char* cblock = (char*)calloc(clen, 1);
 	if (!cblock)
 	{
@@ -865,7 +865,7 @@ int desimp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -888,7 +888,7 @@ int desimp(char* charmap, char*& tablestr)
 						newloc++;
 						if (newloc > newtablelen - 2)
 						{
-							newtablelen += 256;
+							newtablelen += 0xff;
 							alc = (char*)realloc(newtablestr, newtablelen);
 							if (!alc)
 							{
@@ -904,7 +904,7 @@ int desimp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -924,7 +924,7 @@ int desimp(char* charmap, char*& tablestr)
 				newloc++;
 				if (newloc > newtablelen - 2)
 				{
-					newtablelen += 256;
+					newtablelen += 0xff;
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
@@ -941,7 +941,7 @@ int desimp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -957,7 +957,7 @@ int desimp(char* charmap, char*& tablestr)
 				newloc++;
 				if (newloc > newtablelen - 2)
 				{
-					newtablelen += 256;
+					newtablelen += 0xff;
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
@@ -974,7 +974,7 @@ int desimp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -991,7 +991,7 @@ int desimp(char* charmap, char*& tablestr)
 			newloc++;
 			if (newloc > newtablelen - 2)
 			{
-				newtablelen += 256;
+				newtablelen += 0xff;
 				alc = (char*)realloc(newtablestr, newtablelen);
 				if (!alc)
 				{
@@ -1021,7 +1021,7 @@ int desimp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -1044,7 +1044,7 @@ int desimp(char* charmap, char*& tablestr)
 						newloc++;
 						if (newloc > newtablelen - 2)
 						{
-							newtablelen += 256;
+							newtablelen += 0xff;
 							alc = (char*)realloc(newtablestr, newtablelen);
 							if (!alc)
 							{
@@ -1060,7 +1060,7 @@ int desimp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -1078,7 +1078,7 @@ int desimp(char* charmap, char*& tablestr)
 			newloc++;
 			if (newloc > newtablelen - 2)
 			{
-				newtablelen += 256;
+				newtablelen += 0xff;
 				alc = (char*)realloc(newtablestr, newtablelen);
 				if (!alc)
 				{
@@ -1100,7 +1100,7 @@ int desimp(char* charmap, char*& tablestr)
 		}
 		if (cloc > clen - 2)
 		{
-			clen += 256;
+			clen += 0xff;
 			alc = (char*)realloc(cblock, clen);
 			if (!alc)
 			{
@@ -1143,7 +1143,7 @@ int simp(char* charmap, char*& tablestr)
 		}
 	}
 	char* alc = NULL;
-	unsigned long long clen = 256;
+	unsigned long long clen = 0xff;
 	char* cblock = (char*)calloc(clen, 1);
 	unsigned long long cloc = 0;
 	std::string str0;
@@ -1168,7 +1168,7 @@ int simp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -1185,7 +1185,7 @@ int simp(char* charmap, char*& tablestr)
 						newloc++;
 						if (newloc > newtablelen - 2)
 						{
-							newtablelen += 256;
+							newtablelen += 0xff;
 							alc = (char*)realloc(newtablestr, newtablelen);
 							if (!alc)
 							{
@@ -1201,7 +1201,7 @@ int simp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -1219,7 +1219,7 @@ int simp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -1235,7 +1235,7 @@ int simp(char* charmap, char*& tablestr)
 				newloc++;
 				if (newloc > newtablelen - 2)
 				{
-					newtablelen += 256;
+					newtablelen += 0xff;
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
@@ -1257,7 +1257,7 @@ int simp(char* charmap, char*& tablestr)
 				newloc++;
 				if (newloc > newtablelen - 2)
 				{
-					newtablelen += 256;
+					newtablelen += 0xff;
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
@@ -1274,7 +1274,7 @@ int simp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -1290,7 +1290,7 @@ int simp(char* charmap, char*& tablestr)
 				newloc++;
 				if (newloc > newtablelen - 2)
 				{
-					newtablelen += 256;
+					newtablelen += 0xff;
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
@@ -1309,7 +1309,7 @@ int simp(char* charmap, char*& tablestr)
 				newloc++;
 				if (newloc > newtablelen - 2)
 				{
-					newtablelen += 256;
+					newtablelen += 0xff;
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
@@ -1326,7 +1326,7 @@ int simp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -1342,7 +1342,7 @@ int simp(char* charmap, char*& tablestr)
 				newloc++;
 				if (newloc > newtablelen - 2)
 				{
-					newtablelen += 256;
+					newtablelen += 0xff;
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
@@ -1359,7 +1359,7 @@ int simp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -1375,7 +1375,7 @@ int simp(char* charmap, char*& tablestr)
 				newloc++;
 				if (newloc > newtablelen - 2)
 				{
-					newtablelen += 256;
+					newtablelen += 0xff;
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
@@ -1399,7 +1399,7 @@ int simp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -1416,7 +1416,7 @@ int simp(char* charmap, char*& tablestr)
 						newloc++;
 						if (newloc > newtablelen - 2)
 						{
-							newtablelen += 256;
+							newtablelen += 0xff;
 							alc = (char*)realloc(newtablestr, newtablelen);
 							if (!alc)
 							{
@@ -1432,7 +1432,7 @@ int simp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -1450,7 +1450,7 @@ int simp(char* charmap, char*& tablestr)
 					newloc++;
 					if (newloc > newtablelen - 2)
 					{
-						newtablelen += 256;
+						newtablelen += 0xff;
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
@@ -1466,7 +1466,7 @@ int simp(char* charmap, char*& tablestr)
 				newloc++;
 				if (newloc > newtablelen - 2)
 				{
-					newtablelen += 256;
+					newtablelen += 0xff;
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
@@ -1492,7 +1492,7 @@ int simp(char* charmap, char*& tablestr)
 		default: //0-9
 			if (cloc > clen - 2)
 			{
-				clen += 256;
+				clen += 0xff;
 				alc = (char*)realloc(cblock, clen);
 				if (!alc)
 				{
@@ -1744,14 +1744,16 @@ int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenam
 	unsigned long long newfilenamelen = wcslen(newfilename);
 	if (newfilenamelen > oldfilenamelen)
 	{
-		char* alc = (char*)realloc(filenames, oldlen + newfilenamelen - oldfilenamelen + 1);
+		char* alc = (char*)realloc(filenames, oldlen + newfilenamelen - oldfilenamelen + 3);
 		if (!alc)
 		{
 			return 1;
 		}
 		filenames = alc;
 		alc = NULL;
-		filenames[oldlen + newfilenamelen - oldfilenamelen] = 0;
+		filenames[oldlen + newfilenamelen - oldfilenamelen] = 255;
+		filenames[oldlen + newfilenamelen - oldfilenamelen] = 254;
+		filenames[oldlen + newfilenamelen - oldfilenamelen + 2] = 0;
 	}
 	char* coldfilename = (char*)calloc(oldfilenamelen + 1, 1);
 	char* cnewfilename = (char*)calloc(newfilenamelen + 1, 1);
@@ -2075,7 +2077,7 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 	unsigned long long block = 0;
 	unsigned long long rblock = 0;
 	char* alc = NULL;
-	unsigned long long clen = 256;
+	unsigned long long clen = 0xff;
 	char* cblock = (char*)calloc(clen, 1);
 	if (!cblock)
 	{
@@ -2118,7 +2120,7 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 		default: //0-9
 			if (cloc > clen - 2)
 			{
-				clen += 256;
+				clen += 0xff;
 				alc = (char*)realloc(cblock, clen);
 				if (!alc)
 				{
