@@ -1184,6 +1184,10 @@ static VOID Close(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext)
 {
 	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
 	std::wstring Path = FileCtx->Path;
+	if (allocationsizes[Path])
+	{
+		allocationsizes.erase(Path);
+	}
 	if (opened[Path])
 	{
 		if (opened[Path] != 1)
@@ -1193,10 +1197,6 @@ static VOID Close(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext)
 		else
 		{
 			opened.erase(Path);
-			if (allocationsizes[Path])
-			{
-				allocationsizes.erase(Path);
-			}
 		}
 	}
 	free(FileCtx->Path);
