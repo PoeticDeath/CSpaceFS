@@ -196,6 +196,10 @@ void resetcloc(unsigned long long& cloc, char*& cblock, unsigned long long clen,
 unsigned long long getpindex(unsigned long long index, char* tablestr)
 {
 	unsigned long long pindex = 0;
+	if (!index)
+	{
+		return pindex;
+	}
 	while ((tablestr[index - pindex - 1] & 0xff) != 46)
 	{
 		pindex++;
