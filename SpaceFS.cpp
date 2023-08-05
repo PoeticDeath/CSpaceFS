@@ -441,7 +441,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 			o = 0;
 			if (list[t].unused == sectorsize)
 			{
-				bytecount = blocksize;
+				o = bytecount = blocksize;
 			}
 			while (bytecount < blocksize)
 			{
@@ -2349,13 +2349,7 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	unsigned long long filenameindex = 0;
 	unsigned long long filenamestrindex = 0;
 	unsigned long long filesize = 0;
-	getfilenameindex(PWSTR(L"/"), filenames, filenamecount, filenameindex, filenamestrindex);
-	index = gettablestrindex(PWSTR(L"/"), filenames, tablestr, filenamecount);
-	getfilesize(sectorsize, index, tablestr, filesize);
-	if (!trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize, filesize + 1, filenameindex, charmap, tablestr, fileinfo, usedblocks, PWSTR(L"/"), filenames, filenamecount))
-	{
-		trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize + 1, filesize, filenameindex, charmap, tablestr, fileinfo, usedblocks, PWSTR(L"/"), filenames, filenamecount);
-	}
+	unsigned long winattrs = 0;
 
 	createfile((PWSTR)L"/Test.bin", 545, 545, 448, 2048, filenamecount, fileinfo, filenames, charmap, tablestr);
 	createfile((PWSTR)L"/Test", 545, 1000, 448, 2048, filenamecount, fileinfo, filenames, charmap, tablestr);

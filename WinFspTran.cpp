@@ -2438,6 +2438,14 @@ static FSP_FILE_SYSTEM_INTERFACE SpFsInterface =
 static
 VOID SpFsDelete(SPFS* SpFs)
 {
+	unsigned long long index = 0;
+	unsigned long long filenameindex = 0;
+	unsigned long long filenamestrindex = 0;
+	getfilenameindex(PWSTR(L"?"), SpFs->Filenames, SpFs->FilenameCount, filenameindex, filenamestrindex);
+	index = gettablestrindex(PWSTR(L"?"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	deletefile(index, filenameindex, filenamestrindex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+
 	if (SpFs->FileSystem)
 	{
 		FspFileSystemDelete(SpFs->FileSystem);
@@ -2671,13 +2679,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	unsigned long long filenameindex = 0;
 	unsigned long long filenamestrindex = 0;
 	unsigned long long filesize = 0;
-	getfilenameindex(PWSTR(L"/"), filenames, filenamecount, filenameindex, filenamestrindex);
-	index = gettablestrindex(PWSTR(L"/"), filenames, tablestr, filenamecount);
-	getfilesize(sectorsize, index, tablestr, filesize);
-	if (!trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize, filesize + 1, filenameindex, charmap, tablestr, fileinfo, usedblocks, PWSTR(L"/"), filenames, filenamecount))
-	{
-		trunfile(hDisk, sectorsize, index, tablesize, disksize.QuadPart, filesize + 1, filesize, filenameindex, charmap, tablestr, fileinfo, usedblocks, PWSTR(L"/"), filenames, filenamecount);
-	}
+	unsigned long winattrs = 0;
 
 	// Need to init SpaceFS ^
 
@@ -2705,6 +2707,78 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	SpFs->UsedBlocks = usedblocks;
 
 	// Need to save SpaceFS to SpFs ^
+
+	if (NT_SUCCESS(FindDuplicate(SpFs, PWSTR(L""))))
+	{
+		createfile(PWSTR(L""), 545, 545, 448, 0, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
+	}
+
+	if (NT_SUCCESS(FindDuplicate(SpFs, PWSTR(L"/"))))
+	{
+		winattrs = FILE_ATTRIBUTE_DIRECTORY;
+		attrtoATTR(winattrs);
+		createfile(PWSTR(L"/"), 545, 545, 16877, winattrs, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
+	}
+
+	if (NT_SUCCESS(FindDuplicate(SpFs, PWSTR(L"?"))))
+	{
+		createfile(PWSTR(L"?"), 545, 545, 16877, 0, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
+	}
+	else
+	{
+		std::cout << "Careful the disk was unmounted improperly." << std::endl;
+	}
+
+	if (NT_SUCCESS(FindDuplicate(SpFs, PWSTR(L":"))))
+	{
+		createfile(PWSTR(L":"), 545, 545, 448, 0, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
+	}
+
+	// Create the root directory if needed ^
+
+	getfilenameindex(PWSTR(L""), SpFs->Filenames, SpFs->FilenameCount, filenameindex, filenamestrindex);
+	index = gettablestrindex(PWSTR(L""), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	getfilesize(SpFs->SectorSize, index, SpFs->TableStr, filesize);
+	if (!filesize)
+	{
+		char* buf = (char*)calloc(23, 1);
+		if (!buf)
+		{
+			Result = STATUS_INSUFFICIENT_RESOURCES;
+			goto exit;
+		}
+		memcpy(buf, "O:WDG:WDD:P(A;;FA;;;WD)", 23);
+		trunfile(SpFs->hDisk, SpFs->SectorSize, index, SpFs->TableSize, SpFs->DiskSize, 0, 23, filenameindex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L""), SpFs->Filenames, SpFs->FilenameCount);
+		readwritefile(SpFs->hDisk, SpFs->SectorSize, index, 0, 23, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, filenameindex, 1);
+	}
+
+	getfilenameindex(PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount, filenameindex, filenamestrindex);
+	index = gettablestrindex(PWSTR(L"/"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	getfilesize(SpFs->SectorSize, index, SpFs->TableStr, filesize);
+	if (!trunfile(SpFs->hDisk, SpFs->SectorSize, index, SpFs->TableSize, SpFs->DiskSize, filesize, filesize + 1, filenameindex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount))
+	{
+		trunfile(SpFs->hDisk, SpFs->SectorSize, index, SpFs->TableSize, SpFs->DiskSize, filesize + 1, filesize, filenameindex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount);
+	}
+
+	getfilenameindex(PWSTR(L":"), SpFs->Filenames, SpFs->FilenameCount, filenameindex, filenamestrindex);
+	index = gettablestrindex(PWSTR(L":"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	getfilesize(SpFs->SectorSize, index, SpFs->TableStr, filesize);
+	if (!filesize)
+	{
+		char* buf = (char*)calloc(8, 1);
+		if (!buf)
+		{
+			Result = STATUS_INSUFFICIENT_RESOURCES;
+			goto exit;
+		}
+		memcpy(buf, "CSpaceFS", 8);
+		trunfile(SpFs->hDisk, SpFs->SectorSize, index, SpFs->TableSize, SpFs->DiskSize, 0, 8, filenameindex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L":"), SpFs->Filenames, SpFs->FilenameCount);
+		readwritefile(SpFs->hDisk, SpFs->SectorSize, index, 0, 8, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, filenameindex, 1);
+	}
+
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+
+	// Init the root directory ^
 
 	if (sectorsize / 512 > 32768)
 	{
