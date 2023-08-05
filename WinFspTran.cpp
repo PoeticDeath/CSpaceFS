@@ -451,7 +451,21 @@ static NTSTATUS GetFileInfoInternal(SPFS* SpFs, FSP_FSCTL_FILE_INFO* FileInfo, P
 
 	ATTRtoattr(winattrs);
 	FileInfo->FileAttributes = winattrs;
-	FileInfo->ReparseTag = 0;
+	if (FileInfo->FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+	{
+		char* buf = (char*)calloc(4, sizeof(char));
+		if (!buf)
+		{
+			return STATUS_INSUFFICIENT_RESOURCES;
+		}
+		readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, 4, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 0);
+		FileInfo->ReparseTag = *(unsigned long*)buf;
+		free(buf);
+	}
+	else
+	{
+		FileInfo->ReparseTag = 0;
+	}
 	FileInfo->FileSize = FileSize;
 	if (!allocationsizes[Path])
 	{
@@ -553,6 +567,89 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM* FileSystem, PWSTR Label, FSP_FS
 	return STATUS_SUCCESS;
 }
 
+static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
+{
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	unsigned long long FileNameLen = wcslen(FileName);
+	PWSTR Filename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!Filename)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	memcpy(Filename, FileName, FileNameLen * sizeof(wchar_t));
+	ReplaceBSWFS(Filename);
+	FSP_FSCTL_FILE_INFO* FileInfo = (FSP_FSCTL_FILE_INFO*)calloc(sizeof(FSP_FSCTL_FILE_INFO), 1);
+	if (!FileInfo)
+	{
+		free(Filename);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	GetFileInfoInternal(SpFs, FileInfo, Filename);
+
+	if (FileInfo->FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+	{
+		if (!Buffer)
+		{
+			free(Filename);
+			free(FileInfo);
+			return STATUS_SUCCESS;
+		}
+		unsigned long long FilenameIndex = 0;
+		unsigned long long FilenameSTRIndex = 0;
+		unsigned long long FileSize = 0;
+		getfilenameindex(Filename, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+		unsigned long long Index = gettablestrindex(Filename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+		getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+		if (FileSize > *PSize)
+		{
+			free(Filename);
+			free(FileInfo);
+			return STATUS_BUFFER_TOO_SMALL;
+		}
+		char* buf = (char*)calloc(FileSize, 1);
+		if (!buf)
+		{
+			free(Filename);
+			free(FileInfo);
+			return STATUS_INSUFFICIENT_RESOURCES;
+		}
+		readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 0);
+		memcpy(Buffer, buf, FileSize);
+		*PSize = FileSize;
+		
+		free(Filename);
+		free(buf);
+		free(FileInfo);
+		return STATUS_SUCCESS;
+	}
+
+	free(Filename);
+	free(FileInfo);
+	return STATUS_NOT_A_REPARSE_POINT;
+}
+
+static NTSTATUS GetReparsePointByName(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, BOOLEAN IsDirectory, PVOID Buffer, PSIZE_T PSize)
+{
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	unsigned long long FileNameLen = wcslen(FileName);
+	PWSTR Filename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
+	if (!Filename)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	memcpy(Filename, FileName, FileNameLen * sizeof(wchar_t));
+	ReplaceBSWFS(Filename);
+	if (!NT_SUCCESS(FindDuplicate(SpFs, Filename)))
+	{
+		free(Filename);
+		return GetReparsePoint(FileSystem, FileContext, FileName, Buffer, PSize);
+	}
+
+	free(Filename);
+	return STATUS_OBJECT_NAME_NOT_FOUND;
+}
+
 static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, PUINT32 PFileAttributes, PSECURITY_DESCRIPTOR SecurityDescriptor, SIZE_T* PSecurityDescriptorSize)
 {
 	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
@@ -572,6 +669,10 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 	if (NT_SUCCESS(FindDuplicate(SpFs, Filename)))
 	{
 		free(Filename);
+		if (FspFileSystemFindReparsePoint(FileSystem, GetReparsePointByName, 0, FileName, PFileAttributes))
+		{
+			return STATUS_REPARSE;
+		}
 		return STATUS_OBJECT_NAME_NOT_FOUND;
 	}
 
@@ -2000,32 +2101,78 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 
 static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 ReparsePointIndex, BOOLEAN ResolveLastPathComponent, PIO_STATUS_BLOCK PIoStatus, PVOID Buffer, PSIZE_T PSize)
 {
-	unsigned long long FileNameLen = wcslen(FileName);
-	PWSTR Filename = (PWSTR)calloc(FileNameLen + 1, sizeof(wchar_t));
-	if (!Filename)
-	{
-		return STATUS_INSUFFICIENT_RESOURCES;
-	}
-
-	memcpy(Filename, FileName, FileNameLen * sizeof(wchar_t));
-	ReplaceBSWFS(Filename);
-	free(Filename);
-	return STATUS_INVALID_DEVICE_REQUEST;
-}
-
-static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, PVOID Buffer, PSIZE_T PSize)
-{
-	return STATUS_INVALID_DEVICE_REQUEST;
+	return FspFileSystemResolveReparsePoints(FileSystem, GetReparsePointByName, 0, FileName, ReparsePointIndex, ResolveLastPathComponent, PIoStatus, Buffer, PSize);
 }
 
 static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, PVOID Buffer, SIZE_T Size)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	FSP_FSCTL_FILE_INFO* FileInfo = (FSP_FSCTL_FILE_INFO*)calloc(sizeof(FSP_FSCTL_FILE_INFO), 1);
+	if (!FileInfo)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
+
+	unsigned long long FilenameIndex = 0;
+	unsigned long long FilenameSTRIndex = 0;
+	unsigned long long FileSize = 0;
+	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+	unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+	trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, Size, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount);
+	char* buf = (char*)calloc(Size, 1);
+	if (!buf)
+	{
+		free(FileInfo);
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+	memcpy(buf, Buffer, Size);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, Size, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 1);
+	unsigned long winattrs = FileInfo->FileAttributes | FILE_ATTRIBUTE_REPARSE_POINT;
+	attrtoATTR(winattrs);
+	chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+
+	free(buf);
+	free(FileInfo);
+	return STATUS_SUCCESS;
 }
 
 static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileName, PVOID Buffer, SIZE_T Size)
 {
-	return STATUS_INVALID_DEVICE_REQUEST;
+	SPFS* SpFs = (SPFS*)FileSystem->UserContext;
+	SPFS_FILE_CONTEXT* FileCtx = (SPFS_FILE_CONTEXT*)FileContext;
+	FSP_FSCTL_FILE_INFO* FileInfo = (FSP_FSCTL_FILE_INFO*)calloc(sizeof(FSP_FSCTL_FILE_INFO), 1);
+	if (!FileInfo)
+	{
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
+
+	if (FileInfo->FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+	{
+		unsigned long long FilenameIndex = 0;
+		unsigned long long FilenameSTRIndex = 0;
+		unsigned long long FileSize = 0;
+		getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+		unsigned long long Index = gettablestrindex(FileCtx->Path, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+		getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+		trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, 0, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount);
+		unsigned long winattrs = FileInfo->FileAttributes & ~FILE_ATTRIBUTE_REPARSE_POINT;
+		attrtoATTR(winattrs);
+		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
+		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+
+		free(FileInfo);
+		return STATUS_SUCCESS;
+	}
+
+	free(FileInfo);
+	return STATUS_NOT_A_REPARSE_POINT;
 }
 
 static BOOLEAN AddStreamInfo(SPFS* SpFs, PWSTR Name, PWSTR FileName, PVOID Buffer, ULONG Length, PULONG PBytesTransferred)
@@ -2195,7 +2342,7 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext,
 
 	if (!NT_SUCCESS(FindDuplicate(SpFs, Filename)))
 	{
-		DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + FileNameLen * sizeof(WCHAR));
+		DirInfo->Size = (UINT16)(sizeof(FSP_FSCTL_DIR_INFO) + FileNameLen * sizeof(wchar_t));
 		GetFileInfoInternal(SpFs, &DirInfo->FileInfo, Filename);
 		memcpy(DirInfo->FileNameBuf, FileName, DirInfo->Size - sizeof(FSP_FSCTL_DIR_INFO));
 
@@ -2592,7 +2739,7 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 	VolumeParams.VolumeCreationTime = ((PLARGE_INTEGER)&CreationTime)->QuadPart;
 	VolumeParams.VolumeSerialNumber = 0;
 	VolumeParams.FileInfoTimeout = 1000;
-	VolumeParams.CaseSensitiveSearch = 1;
+	VolumeParams.CaseSensitiveSearch = 0;
 	VolumeParams.CasePreservedNames = 1;
 	VolumeParams.UnicodeOnDisk = 1;
 	VolumeParams.PersistentAcls = 1;
