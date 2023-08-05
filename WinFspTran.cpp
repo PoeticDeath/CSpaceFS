@@ -2982,6 +2982,8 @@ NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 		goto exit;
 	}
 
+	FspFileSystemSetOperationGuardStrategy(SpFs->FileSystem, FSP_FILE_SYSTEM_OPERATION_GUARD_STRATEGY_COARSE);
+
 	Result = FspFileSystemStartDispatcher(SpFs->FileSystem, 0);
 	if (!NT_SUCCESS(Result))
 	{
