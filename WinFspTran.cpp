@@ -2909,6 +2909,8 @@ NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 	PWSTR MountPoint = 0;
 	ULONG SectorSize = 0;
 	ULONG DebugFlags = 0;
+	PWSTR DebugLogFile = 0;
+	HANDLE DebugLogHandle = INVALID_HANDLE_VALUE;
 	NTSTATUS Result = 0;
 	SPFS* SpFs = 0;
 
@@ -2924,6 +2926,9 @@ NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 			goto usage;
 		case L'd':
 			argtol(DebugFlags);
+			break;
+		case L'D':
+			argtos(DebugLogFile);
 			break;
 		case L'p':
 			argtos(Path);
@@ -2947,6 +2952,25 @@ NTSTATUS SvcStart(FSP_SERVICE* Service, ULONG argc, PWSTR* argv)
 	if (!Path || !MountPoint)
 	{
 		goto usage;
+	}
+
+	if (DebugLogFile)
+	{
+		if (!wcscmp(L"-", DebugLogFile))
+		{
+			DebugLogHandle = GetStdHandle(STD_ERROR_HANDLE);
+		}
+		else
+		{
+			DebugLogHandle = CreateFileW(DebugLogFile, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+		}
+		if (INVALID_HANDLE_VALUE == DebugLogHandle)
+		{
+			fail((PWSTR)L"Was unable to open debug log file.");
+			goto usage;
+		}
+
+		FspDebugLogSetHandle(DebugLogHandle);
 	}
 
 	EnableBackupRestorePrivileges();
@@ -2982,10 +3006,11 @@ usage:
 		"usage: %s OPTIONS\n"
 		"\n"
 		"options:\n"
-		"    -d DebugFlags [-1: enable all debug logs]\n"
-		"    -p Path       [file or drive to use as file system]\n"
-		"    -m MountPoint [X:|*|directory]\n"
-		"    -s SectorSize [used to specify to format and new sectorsize]\n";
+		"    -d DebugFlags   [-1: enable all debug logs]\n"
+		"    -D DebugLogFile [file path; use - for stderr]\n"
+		"    -p Path         [file or drive to use as file system]\n"
+		"    -m MountPoint   [X:|*|directory]\n"
+		"    -s SectorSize   [used to specify to format and new sectorsize]\n";
 
 	fail(usage, PROGNAME);
 	return STATUS_UNSUCCESSFUL;
