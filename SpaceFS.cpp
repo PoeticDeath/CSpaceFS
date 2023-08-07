@@ -1801,35 +1801,57 @@ unsigned readwritedrive(HANDLE hDisk, char*& buf, unsigned long long len, unsign
 {
 	DWORD wr;
 	unsigned long long start = loc.QuadPart % 512;
-	unsigned long long end = 512 - (start + len) % 512;
-	char* tbuf = (char*)calloc(start + len + end, 1);
-	if (!tbuf)
+	unsigned long long end = (512 - (start + len) % 512) % 512;
+	char* tbuf = buf;
+	if (start || end)
 	{
-		return 1;
+		tbuf = (char*)calloc(start + len + end, 1);
+		if (!tbuf)
+		{
+			return 1;
+		}
+		loc.QuadPart -= start;
 	}
-	loc.QuadPart -= start;
-	SetFilePointerEx(hDisk, loc, NULL, 0);
-	if (!ReadFile(hDisk, tbuf, start + len + end, &wr, NULL))
+	if (start || end || !rw)
 	{
-		free(tbuf);
-		return 1;
+		SetFilePointerEx(hDisk, loc, NULL, 0);
+		if (!ReadFile(hDisk, tbuf, start + len + end, &wr, NULL))
+		{
+			if (start || end)
+			{
+				free(tbuf);
+			}
+			return 1;
+		}
 	}
 	if (rw)
 	{
-		memcpy(tbuf + start, buf, len);
+		if (start || end)
+		{
+			memcpy(tbuf + start, buf, len);
+		}
 		SetFilePointerEx(hDisk, loc, NULL, 0);
 		if (!WriteFile(hDisk, tbuf, start + len + end, &wr, NULL))
 		{
-			free(tbuf);
+			if (start || end)
+			{
+				free(tbuf);
+			}
 			return 1;
 		}
-		free(tbuf);
+		if (start || end)
+		{
+			free(tbuf);
+		}
 		return 0;
 	}
 	else
 	{
-		memcpy(buf, tbuf + start, len);
-		free(tbuf);
+		if (start || end)
+		{
+			memcpy(buf, tbuf + start, len);
+			free(tbuf);
+		}
 		return 0;
 	}
 }

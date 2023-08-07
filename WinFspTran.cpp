@@ -1329,15 +1329,9 @@ static NTSTATUS Read(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buffe
 	}
 	Length = min(Length, FileSize - Offset);
 	getfilenameindex(FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
-	char* Buf = (char*)calloc(static_cast<size_t>(Length) + 1, 1);
-	if (!Buf)
-	{
-		return STATUS_INSUFFICIENT_RESOURCES;
-	}
+	char* Buf = (char*)Buffer;
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, NoStreamFileNameIndex, 0);
-	memcpy(Buffer, Buf, Length);
 	*PBytesTransffered = Length;
-	free(Buf);
 
 	return STATUS_SUCCESS;
 }
@@ -1381,16 +1375,10 @@ static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buff
 		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
 	}
 
-	char* Buf = (char*)calloc(static_cast<size_t>(Length) + 1, 1);
-	if (!Buf)
-	{
-		return STATUS_INSUFFICIENT_RESOURCES;
-	}
-	memcpy(Buf, Buffer, Length);
+	char* Buf = (char*)Buffer;
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, Offset, Length, SpFs->DiskSize, SpFs->TableStr, Buf, SpFs->FileInfo, NoStreamFileNameIndex, 1);
 	*PBytesTransferred = Length;
 	Result = GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
-	free(Buf);
 
 	return Result;
 }
