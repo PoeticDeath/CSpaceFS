@@ -28,6 +28,7 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned long mode, unsigned long winattrs, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char* charmap, char*& tablestr);
 int deletefile(unsigned long long index, unsigned long long filenameindex, unsigned long long filenamestrindex, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char*& tablestr);
 int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenamestrindex, char*& filenames);
+unsigned readwritedrive(HANDLE hDisk, char*& buf, unsigned long long len, unsigned rw, LARGE_INTEGER loc);
 void readwrite(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksize, unsigned long long start, unsigned step, unsigned range, unsigned long long len, std::string str0, std::string str1, std::string str2, std::string rstr, unsigned long long& rblock, unsigned long long& block, char*& buf, unsigned rw);
 void chtime(char*& fileinfo, unsigned long long filenameindex, double& time, unsigned ch);
 void chgid(char*& fileinfo, unsigned long long filenamecount, unsigned long long filenameindex, unsigned long& gid, unsigned ch);

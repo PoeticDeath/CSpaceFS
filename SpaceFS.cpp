@@ -1756,7 +1756,7 @@ int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenam
 		filenames = alc;
 		alc = NULL;
 		filenames[oldlen + newfilenamelen - oldfilenamelen] = 255;
-		filenames[oldlen + newfilenamelen - oldfilenamelen] = 254;
+		filenames[oldlen + newfilenamelen - oldfilenamelen + 1] = 254;
 		filenames[oldlen + newfilenamelen - oldfilenamelen + 2] = 0;
 	}
 	char* coldfilename = (char*)calloc(oldfilenamelen + 1, 1);
@@ -1789,7 +1789,7 @@ int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenam
 			break;
 		}
 	}
-	memcpy(filenames + filenamestrindex - coldfilenamelen + cnewfilenamelen, files, afterlen + 1);
+	memcpy(filenames + filenamestrindex - coldfilenamelen + cnewfilenamelen, files, afterlen + 2);
 	filenamestrindex -= coldfilenamelen - cnewfilenamelen;
 	free(coldfilename);
 	free(cnewfilename);
@@ -1797,10 +1797,47 @@ int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenam
 	return 0;
 }
 
+unsigned readwritedrive(HANDLE hDisk, char*& buf, unsigned long long len, unsigned rw, LARGE_INTEGER loc)
+{
+	DWORD wr;
+	unsigned long long start = loc.QuadPart % 512;
+	unsigned long long end = 512 - (start + len) % 512;
+	char* tbuf = (char*)calloc(start + len + end, 1);
+	if (!tbuf)
+	{
+		return 1;
+	}
+	loc.QuadPart -= start;
+	SetFilePointerEx(hDisk, loc, NULL, 0);
+	if (!ReadFile(hDisk, tbuf, start + len + end, &wr, NULL))
+	{
+		free(tbuf);
+		return 1;
+	}
+	if (rw)
+	{
+		memcpy(tbuf + start, buf, len);
+		SetFilePointerEx(hDisk, loc, NULL, 0);
+		if (!WriteFile(hDisk, tbuf, start + len + end, &wr, NULL))
+		{
+			free(tbuf);
+			return 1;
+		}
+		free(tbuf);
+		return 0;
+	}
+	else
+	{
+		memcpy(buf, tbuf + start, len);
+		free(tbuf);
+		return 0;
+	}
+}
+
 void readwrite(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksize, unsigned long long start, unsigned step, unsigned range, unsigned long long len, std::string str0, std::string str1, std::string str2, std::string rstr, unsigned long long& rblock, unsigned long long& block, char*& buf, unsigned rw)
 {
 	LARGE_INTEGER loc{};
-	DWORD wr;
+	char* tbuf = NULL;
 	if (range)
 	{
 		for (unsigned long long p = std::strtoull(rstr.c_str(), 0, 10); p < std::strtoull(str0.c_str(), 0, 10) + 1; p++)
@@ -1812,44 +1849,21 @@ void readwrite(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksi
 					if (step)
 					{
 						loc.QuadPart = disksize - (p * sectorsize + sectorsize) + start % sectorsize + std::strtoul(str1.c_str(), 0, 10);
-						SetFilePointerEx(hDisk, loc, NULL, 0);
 						if (len - start % sectorsize < std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10))
 						{
-							if (!rw)
-							{
-								if (!ReadFile(hDisk, buf, len, &wr, NULL)) return;
-							}
-							else
-							{
-								if (!WriteFile(hDisk, buf, len, &wr, NULL)) return;
-							}
+							if (readwritedrive(hDisk, buf, len, rw, loc)) return;
 							rblock += len;
 						}
 						else
 						{
-							if (!rw)
-							{
-								if (!ReadFile(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL)) return;
-							}
-							else
-							{
-								if (!WriteFile(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL)) return;
-							}
+							if (readwritedrive(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, rw, loc)) return;
 							rblock += std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize;
 						}
 					}
 					else
 					{
 						loc.QuadPart = disksize - (p * sectorsize + sectorsize) + start % sectorsize;
-						SetFilePointerEx(hDisk, loc, NULL, 0);
-						if (!rw)
-						{
-							if (!ReadFile(hDisk, buf, min(sectorsize - start % sectorsize, len), &wr, NULL)) return;
-						}
-						else
-						{
-							if (!WriteFile(hDisk, buf, min(sectorsize - start % sectorsize, len), &wr, NULL)) return;
-						}
+						if (readwritedrive(hDisk, buf, min(sectorsize - start % sectorsize, len), rw, loc)) return;
 						rblock += min(sectorsize - start % sectorsize, len);
 					}
 				}
@@ -1863,29 +1877,15 @@ void readwrite(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksi
 					{
 						loc.QuadPart = disksize - (p * sectorsize + sectorsize);
 					}
-					SetFilePointerEx(hDisk, loc, NULL, 0);
-					if (!rw)
-					{
-						if (!ReadFile(hDisk, buf + rblock, len - rblock, &wr, NULL)) return;
-					}
-					else
-					{
-						if (!WriteFile(hDisk, buf + rblock, len - rblock, &wr, NULL)) return;
-					}
+					tbuf = buf + rblock;
+					if (readwritedrive(hDisk, tbuf, len - rblock, rw, loc)) return;
 					rblock = len;
 				}
 				else
 				{ // In between blocks
 					loc.QuadPart = disksize - (p * sectorsize + sectorsize);
-					SetFilePointerEx(hDisk, loc, NULL, 0);
-					if (!rw)
-					{
-						if (!ReadFile(hDisk, buf + rblock, sectorsize, &wr, NULL)) return;
-					}
-					else
-					{
-						if (!WriteFile(hDisk, buf + rblock, sectorsize, &wr, NULL)) return;
-					}
+					tbuf = buf + rblock;
+					if (readwritedrive(hDisk, tbuf, sectorsize, rw, loc)) return;
 					rblock += sectorsize;
 				}
 			}
@@ -1901,44 +1901,21 @@ void readwrite(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksi
 			if (step)
 			{
 				loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize) + start % sectorsize + std::strtoul(str1.c_str(), 0, 10);
-				SetFilePointerEx(hDisk, loc, NULL, 0);
 				if (len - start % sectorsize < std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10))
 				{
-					if (!rw)
-					{
-						if (!ReadFile(hDisk, buf, len, &wr, NULL)) return;
-					}
-					else
-					{
-						if (!WriteFile(hDisk, buf, len, &wr, NULL)) return;
-					}
+					if (readwritedrive(hDisk, buf, len, rw, loc)) return;
 					rblock += len;
 				}
 				else
 				{
-					if (!rw)
-					{
-						if (!ReadFile(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL)) return;
-					}
-					else
-					{
-						if (!WriteFile(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, &wr, NULL)) return;
-					}
+					if (readwritedrive(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, rw, loc)) return;
 					rblock += std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize;
 				}
 			}
 			else
 			{
 				loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize) + start % sectorsize;
-				SetFilePointerEx(hDisk, loc, NULL, 0);
-				if (!rw)
-				{
-					if (!ReadFile(hDisk, buf, min(sectorsize - start % sectorsize, len), &wr, NULL)) return;
-				}
-				else
-				{
-					if (!WriteFile(hDisk, buf, min(sectorsize - start % sectorsize, len), &wr, NULL)) return;
-				}
+				if (readwritedrive(hDisk, buf, min(sectorsize - start % sectorsize, len), rw, loc)) return;
 				rblock += min(sectorsize - start % sectorsize, len);
 			}
 		}
@@ -1952,29 +1929,15 @@ void readwrite(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksi
 			{
 				loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize);
 			}
-			SetFilePointerEx(hDisk, loc, NULL, 0);
-			if (!rw)
-			{
-				if (!ReadFile(hDisk, buf + rblock, len - rblock, &wr, NULL)) return;
-			}
-			else
-			{
-				if (!WriteFile(hDisk, buf + rblock, len - rblock, &wr, NULL)) return;
-			}
+			tbuf = buf + rblock;
+			if (readwritedrive(hDisk, tbuf, len - rblock, rw, loc)) return;
 			rblock = len;
 		}
 		else
 		{ // In between blocks
 			loc.QuadPart = disksize - (std::strtoull(str0.c_str(), 0, 10) * sectorsize + sectorsize);
-			SetFilePointerEx(hDisk, loc, NULL, 0);
-			if (!rw)
-			{
-				if (!ReadFile(hDisk, buf + rblock, sectorsize, &wr, NULL)) return;
-			}
-			else
-			{
-				if (!WriteFile(hDisk, buf + rblock, sectorsize, &wr, NULL)) return;
-			}
+			tbuf = buf + rblock;
+			if (readwritedrive(hDisk, tbuf, sectorsize, rw, loc)) return;
 			rblock += sectorsize;
 		}
 	}
@@ -2206,9 +2169,7 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	unsigned long sectorsize = 512;
 
 	//std::cout << "Opening disk: " << argv[1] << std::endl;
-	HANDLE hDisk = CreateFile(lDisk,
-		GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-		NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE hDisk = CreateFile(lDisk, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 	if (hDisk == INVALID_HANDLE_VALUE)
 	{
 		std::cout << "Opening Error: " << GetLastError() << std::endl;
@@ -2246,6 +2207,10 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 
 	_LARGE_INTEGER disksize = { 0 };
 	SetFilePointerEx(hDisk, disksize, &disksize, 2);
+	if (!disksize.QuadPart)
+	{
+		DeviceIoControl(hDisk, IOCTL_DISK_GET_LENGTH_INFO, NULL, 0, &disksize, sizeof(disksize), NULL, NULL);
+	}
 	//std::cout << "Disk size: " << disksize.QuadPart << std::endl;
 
 	_LARGE_INTEGER seek = { 0 };

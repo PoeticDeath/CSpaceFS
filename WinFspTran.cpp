@@ -19,7 +19,6 @@ std::map<std::wstring, unsigned long long> allocationsizes = {};
 typedef struct
 {
 	FSP_FILE_SYSTEM* FileSystem;
-	PWSTR Path;
 	PWSTR MountPoint;
 	HANDLE hDisk;
 	ULONG SectorSize;
@@ -2435,8 +2434,7 @@ static FSP_FILE_SYSTEM_INTERFACE SpFsInterface =
 	DispatcherStopped,
 };
 
-static
-VOID SpFsDelete(SPFS* SpFs)
+static VOID SpFsDelete(SPFS* SpFs)
 {
 	unsigned long long index = 0;
 	unsigned long long filenameindex = 0;
@@ -2449,11 +2447,6 @@ VOID SpFsDelete(SPFS* SpFs)
 	if (SpFs->FileSystem)
 	{
 		FspFileSystemDelete(SpFs->FileSystem);
-	}
-
-	if (SpFs->Path)
-	{
-		free(SpFs->Path);
 	}
 
 	if (SpFs->MountPoint)
@@ -2489,55 +2482,21 @@ VOID SpFsDelete(SPFS* SpFs)
 	free(SpFs);
 }
 
-static
-NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 DebugFlags, SPFS** PSpFs)
+static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 DebugFlags, SPFS** PSpFs)
 {
-	WCHAR FullPath[MAX_PATH];
-	ULONG Length;
-	HANDLE Handle;
-	FILETIME CreationTime;
-	DWORD LastError;
 	FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 	SPFS* SpFs = 0;
 	NTSTATUS Result = 0;
 
 	*PSpFs = 0;
 
-	Handle = CreateFileW(Path, FILE_READ_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
-	if (Handle == INVALID_HANDLE_VALUE)
-	{
-		return FspNtStatusFromWin32(GetLastError());
-	}
-
-	Length = GetFinalPathNameByHandleW(Handle, FullPath, MAX_PATH, 0);
-	if (0 == Length)
-	{
-		LastError = GetLastError();
-		CloseHandle(Handle);
-		return FspNtStatusFromWin32(LastError);
-	}
-	if (L'\\' == FullPath[Length - 1])
-	{
-		FullPath[--Length] = L'\0';
-	}
-
-	if (!GetFileTime(Handle, &CreationTime, 0, 0))
-	{
-		LastError = GetLastError();
-		CloseHandle(Handle);
-		return FspNtStatusFromWin32(LastError);
-	}
-
-	CloseHandle(Handle);
-
 	// From now on we must goto exit on failure.
-
+	
+	_tzset();
 	unsigned long sectorsize = 512;
 
 	//std::cout << "Opening disk: " << argv[1] << std::endl;
-	HANDLE hDisk = CreateFile(Path,
-		GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-		NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE hDisk = CreateFile(Path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 	if (hDisk == INVALID_HANDLE_VALUE)
 	{
 		std::cout << "Opening Error: " << GetLastError() << std::endl;
@@ -2575,6 +2534,10 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 
 	_LARGE_INTEGER disksize = { 0 };
 	SetFilePointerEx(hDisk, disksize, &disksize, 2);
+	if (!disksize.QuadPart)
+	{
+		DeviceIoControl(hDisk, IOCTL_DISK_GET_LENGTH_INFO, NULL, 0, &disksize, sizeof(disksize), NULL, NULL);
+	}
 	//std::cout << "Disk size: " << disksize.QuadPart << std::endl;
 
 	_LARGE_INTEGER seek = { 0 };
@@ -2793,20 +2756,14 @@ NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT32 Debu
 
 	// Calculate the sector size larger than UINT16 ^
 
-	Length = (static_cast<unsigned long long>(Length) + 1) * sizeof(WCHAR);
-	SpFs->Path = (PWSTR)malloc(Length);
-	if (!SpFs->Path)
-	{
-		Result = STATUS_INSUFFICIENT_RESOURCES;
-		goto exit;
-	}
-	memcpy(SpFs->Path, FullPath, Length);
+	FILETIME ltime;
+	GetSystemTimeAsFileTime(&ltime);
 
 	memset(&VolumeParams, 0, sizeof(VolumeParams));
 	VolumeParams.SectorSize = min(1 << o, 32768);
 	VolumeParams.SectorsPerAllocationUnit = min(sectorsize / 512, 32768);
 	VolumeParams.MaxComponentLength = 0;
-	VolumeParams.VolumeCreationTime = ((PLARGE_INTEGER)&CreationTime)->QuadPart;
+	VolumeParams.VolumeCreationTime = ((PLARGE_INTEGER)&ltime)->QuadPart;
 	VolumeParams.VolumeSerialNumber = 0;
 	VolumeParams.FileInfoTimeout = 1000;
 	VolumeParams.CaseSensitiveSearch = 1;
