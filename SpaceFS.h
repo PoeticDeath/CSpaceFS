@@ -7,10 +7,11 @@
 #include <time.h>
 #include <string>
 
+void handmaps(std::unordered_map<unsigned, unsigned> Emap, std::unordered_map<unsigned, unsigned> Dmap);
 inline unsigned upperchar(unsigned c);
 inline int wcsincmp(const wchar_t* s0, const wchar_t* t0, int n);
-void encode(std::unordered_map<unsigned, unsigned> emap, char*& str, unsigned long long& len);
-void decode(std::unordered_map<unsigned, unsigned> dmap, char*& bytes, unsigned long long len);
+void encode(char*& str, unsigned long long& len);
+void decode(char*& bytes, unsigned long long len);
 void cleantablestr(char* charmap, char*& tablestr);
 int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned long long& extratablesize, char*& table);
 void resetcloc(unsigned long long& cloc, std::string& cblock, std::string& str0, std::string& str1, std::string& str2, unsigned step);
@@ -24,7 +25,7 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 unsigned long long gettablestrindex(PWSTR filename, char* filenames, char* tablestr, unsigned long long filenamecount);
 int desimp(char* charmap, char*& tablestr);
 int simp(char* charmap, char*& tablestr);
-int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::unordered_map<unsigned, unsigned> emap, std::unordered_map<unsigned, unsigned> dmap);
+int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table);
 int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned long mode, unsigned long winattrs, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char* charmap, char*& tablestr);
 int deletefile(unsigned long long index, unsigned long long filenameindex, unsigned long long filenamestrindex, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char*& tablestr);
 int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenamestrindex, char*& filenames);

@@ -12,9 +12,17 @@ struct SectorSize
 	unsigned long unused = Sectorsize;
 };
 
+std::unordered_map<unsigned, unsigned> emap;
+std::unordered_map<unsigned, unsigned> dmap;
 std::unordered_map<std::string, std::unordered_map<unsigned long, unsigned long long>> partlist;
 std::unordered_map<std::string, SectorSize> list;
 bool redetect = true;
+
+void handmaps(std::unordered_map<unsigned, unsigned> Emap, std::unordered_map<unsigned, unsigned> Dmap)
+{
+	emap = Emap;
+	dmap = Dmap;
+}
 
 inline unsigned upperchar(unsigned c)
 {
@@ -65,7 +73,7 @@ inline int wcsincmp(const wchar_t* s0, const wchar_t* t0, int n)
 	return v;/*(0 < v) - (0 > v);*/
 }
 
-void encode(std::unordered_map<unsigned, unsigned> emap, char*& str, unsigned long long& len)
+void encode(char*& str, unsigned long long& len)
 {
 	if (len % 2)
 	{
@@ -102,7 +110,7 @@ void encode(std::unordered_map<unsigned, unsigned> emap, char*& str, unsigned lo
 	free(bytes);
 }
 
-void decode(std::unordered_map<unsigned, unsigned> dmap, char*& bytes, unsigned long long len)
+void decode(char*& bytes, unsigned long long len)
 {
 	char* str = (char*)calloc(len + 1, 2);
 	if (!str)
@@ -1437,7 +1445,7 @@ int simp(char* charmap, char*& tablestr)
 	return 0;
 }
 
-int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::unordered_map<unsigned, unsigned> emap, std::unordered_map<unsigned, unsigned> dmap)
+int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table)
 {
 	_LARGE_INTEGER seek = { 0 };
 	SetFilePointerEx(hDisk, seek, NULL, 0);
@@ -1450,7 +1458,7 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 			tablelen = i + 1;
 		}
 	}
-	encode(emap, tablestr, tablelen);
+	encode(tablestr, tablelen);
 	tablelen /= 2;
 	unsigned long long filenamesizes = 0;
 	unsigned long long filenamestrlen = strlen(filenames);
@@ -1484,7 +1492,7 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 			table[tablelen + filenamesizes + 7 + (i * 35) + j] = fileinfo[(i * 35) + j];
 		}
 	}
-	decode(dmap, tablestr, tablelen);
+	decode(tablestr, tablelen);
 	cleantablestr(charmap, tablestr);
 	DWORD w;
 	WriteFile(hDisk, table, ((tablelen + filenamesizes + 7 + (filenamecount * 35) + 511) / 512) * 512, &w, NULL);
@@ -2190,11 +2198,11 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	//std::cout << "Table size: " << pos - 5 << std::endl;
 	char* tablestr = (char*)calloc(pos - 5 + 1, 1);
 	memcpy(tablestr, table + 5, pos - 5);
-	decode(dmap, tablestr, pos - 5);
+	decode(tablestr, pos - 5);
 	//std::cout << "Decoded table: " << std::string(str, (pos - 5) * 2) << std::endl;
 
 	//simp(charmap, tablestr);
-	//encode(emap, str, (pos - 5) * 2);
+	//encode(str, (pos - 5) * 2);
 	//std::cout << "Encoded table: ";
 	//for (unsigned long long i = 0; i < pos - 5; i++)
 	{

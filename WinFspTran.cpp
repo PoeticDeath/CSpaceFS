@@ -11,8 +11,8 @@
 #define fail(format, ...) FspServiceLog(EVENTLOG_ERROR_TYPE, format, __VA_ARGS__)
 
 char* charmap = (char*)"0123456789-,.; ";
-std::unordered_map<unsigned, unsigned> emap = {};
-std::unordered_map<unsigned, unsigned> dmap = {};
+std::unordered_map<unsigned, unsigned> Emap = {};
+std::unordered_map<unsigned, unsigned> Dmap = {};
 std::unordered_map<std::wstring, unsigned long long> opened = {};
 std::unordered_map<std::wstring, unsigned long long> allocationsizes = {};
 
@@ -545,7 +545,7 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM* FileSystem, PWSTR Label, FSP_FS
 		buf[i] = Label[i];
 	}
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, LabelLen, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 1);
-	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 
 	VolumeInfo->TotalSize = SpFs->DiskSize - static_cast<unsigned long long>(SpFs->TableSize) * SpFs->SectorSize - SpFs->SectorSize;
 
@@ -877,7 +877,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 	}
 
 	free(SecurityParentName);
-	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 
 	std::wstring Path = Filename;
 	opened[Path]++;
@@ -1034,7 +1034,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 	chtime(SpFs->FileInfo, NoStreamFileNameIndex, LTime, 3);
 	chtime(SpFs->FileInfo, NoStreamFileNameIndex, LTime, 5);
 
-	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 	return GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
 }
 
@@ -1275,7 +1275,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 		free(Filename);
 		free(FileNameNoStream);
 
-		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 	}
 
 	return;
@@ -1375,7 +1375,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PVOID Buff
 		{
 			return STATUS_DISK_FULL;
 		}
-		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 	}
 
 	char* Buf = (char*)Buffer;
@@ -1484,7 +1484,7 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT
 		{
 			return STATUS_DISK_FULL;
 		}
-		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 	}
 
 	return GetFileInfoInternal(SpFs, FileInfo, FileCtx->Path);
@@ -1779,7 +1779,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	free(NewFilename);
 	free(SecurityName);
 	free(NewSecurityName);
-	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 
 	return Result;
 }
@@ -1905,7 +1905,7 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 		return STATUS_DISK_FULL;
 	}
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSecuritySize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, FilenameIndex, 1);
-	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 	free(PSecurityDescriptorSize);
 	free(SecurityName);
 	free(Buf);
@@ -2120,7 +2120,7 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, 
 	unsigned long winattrs = FileInfo->FileAttributes | FILE_ATTRIBUTE_REPARSE_POINT;
 	attrtoATTR(winattrs);
 	chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
-	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 
 	free(buf);
 	free(FileInfo);
@@ -2151,7 +2151,7 @@ static NTSTATUS DeleteReparsePoint(FSP_FILE_SYSTEM* FileSystem, PVOID FileContex
 		unsigned long winattrs = FileInfo->FileAttributes & ~FILE_ATTRIBUTE_REPARSE_POINT;
 		attrtoATTR(winattrs);
 		chwinattrs(SpFs->FileInfo, SpFs->FilenameCount, FilenameIndex, winattrs, 1);
-		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+		simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 
 		free(FileInfo);
 		return STATUS_SUCCESS;
@@ -2433,7 +2433,7 @@ static VOID SpFsDelete(SPFS* SpFs)
 	getfilenameindex(PWSTR(L"?"), SpFs->Filenames, SpFs->FilenameCount, filenameindex, filenamestrindex);
 	index = gettablestrindex(PWSTR(L"?"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	deletefile(index, filenameindex, filenamestrindex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
-	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 
 	if (SpFs->FileSystem)
 	{
@@ -2575,8 +2575,8 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 		for (unsigned o = 0; o < 15; o++)
 		{
 			c = charmap[i] << 8 | charmap[o];
-			emap[c] = p;
-			dmap[p] = c;
+			Emap[c] = p;
+			Dmap[p] = c;
 			p++;
 		}
 	}
@@ -2590,11 +2590,11 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 	//std::cout << "Table size: " << pos - 5 << std::endl;
 	char* tablestr = (char*)calloc(pos - 5 + 1, 1);
 	memcpy(tablestr, table + 5, pos - 5);
-	decode(dmap, tablestr, pos - 5);
+	decode(tablestr, pos - 5);
 	//std::cout << "Decoded table: " << std::string(str, (pos - 5) * 2) << std::endl;
 
 	//simp(charmap, tablestr);
-	//encode(emap, str, (pos - 5) * 2);
+	//encode(str, (pos - 5) * 2);
 	//std::cout << "Encoded table: ";
 	//for (unsigned long long i = 0; i < pos - 5; i++)
 	//{
@@ -2647,6 +2647,8 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 	memset(SpFs, 0, sizeof(*SpFs));
 
 	// Allocate SpFs ^
+
+	handmaps(Emap, Dmap);
 
 	SpFs->hDisk = hDisk;
 	SpFs->SectorSize = sectorsize;
@@ -2730,7 +2732,7 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 		readwritefile(SpFs->hDisk, SpFs->SectorSize, index, 0, 8, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, filenameindex, 1);
 	}
 
-	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table, emap, dmap);
+	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 
 	// Init the root directory ^
 
