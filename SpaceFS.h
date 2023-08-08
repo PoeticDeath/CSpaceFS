@@ -3,17 +3,17 @@
 #include <windows.h>
 #include <stdio.h>
 #include <iostream>
-#include <map>
+#include <unordered_map>
 #include <time.h>
 #include <string>
 
 inline unsigned upperchar(unsigned c);
 inline int wcsincmp(const wchar_t* s0, const wchar_t* t0, int n);
-void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& len);
-void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long len);
+void encode(std::unordered_map<unsigned, unsigned> emap, char*& str, unsigned long long& len);
+void decode(std::unordered_map<unsigned, unsigned> dmap, char*& bytes, unsigned long long len);
 void cleantablestr(char* charmap, char*& tablestr);
 int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned long long& extratablesize, char*& table);
-void resetcloc(unsigned long long& cloc, char*& cblock, unsigned long long clen, std::string& str0, std::string& str1, std::string& str2, unsigned step);
+void resetcloc(unsigned long long& cloc, std::string& cblock, std::string& str0, std::string& str1, std::string& str2, unsigned step);
 unsigned long long getpindex(unsigned long long index, char* tablestr);
 int getfilesize(unsigned long sectorsize, unsigned long long index, char* tablestr, unsigned long long& filesize);
 void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std::string str0, std::string str1, std::string str2, std::string rstr, unsigned long long& usedblocks);
@@ -24,7 +24,7 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 unsigned long long gettablestrindex(PWSTR filename, char* filenames, char* tablestr, unsigned long long filenamecount);
 int desimp(char* charmap, char*& tablestr);
 int simp(char* charmap, char*& tablestr);
-int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::map<unsigned, unsigned> emap, std::map<unsigned, unsigned> dmap);
+int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::unordered_map<unsigned, unsigned> emap, std::unordered_map<unsigned, unsigned> dmap);
 int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned long mode, unsigned long winattrs, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char* charmap, char*& tablestr);
 int deletefile(unsigned long long index, unsigned long long filenameindex, unsigned long long filenamestrindex, unsigned long long& filenamecount, char*& fileinfo, char*& filenames, char*& tablestr);
 int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenamestrindex, char*& filenames);

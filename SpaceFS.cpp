@@ -1,7 +1,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <iostream>
-#include <map>
+#include <unordered_map>
 #include <time.h>
 #include <string>
 #include "SpaceFS.h"
@@ -12,8 +12,8 @@ struct SectorSize
 	unsigned long unused = Sectorsize;
 };
 
-std::map<std::string, std::map<unsigned long, unsigned long long>> partlist;
-std::map<std::string, SectorSize> list;
+std::unordered_map<std::string, std::unordered_map<unsigned long, unsigned long long>> partlist;
+std::unordered_map<std::string, SectorSize> list;
 bool redetect = true;
 
 inline unsigned upperchar(unsigned c)
@@ -65,7 +65,7 @@ inline int wcsincmp(const wchar_t* s0, const wchar_t* t0, int n)
 	return v;/*(0 < v) - (0 > v);*/
 }
 
-void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& len)
+void encode(std::unordered_map<unsigned, unsigned> emap, char*& str, unsigned long long& len)
 {
 	if (len % 2)
 	{
@@ -102,7 +102,7 @@ void encode(std::map<unsigned, unsigned> emap, char*& str, unsigned long long& l
 	free(bytes);
 }
 
-void decode(std::map<unsigned, unsigned> dmap, char*& bytes, unsigned long long len)
+void decode(std::unordered_map<unsigned, unsigned> dmap, char*& bytes, unsigned long long len)
 {
 	char* str = (char*)calloc(len + 1, 2);
 	if (!str)
@@ -175,22 +175,22 @@ int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned lo
 	return 0;
 }
 
-void resetcloc(unsigned long long& cloc, char*& cblock, unsigned long long clen, std::string& str0, std::string& str1, std::string& str2, unsigned step)
+void resetcloc(unsigned long long& cloc, std::string& cblock, std::string& str0, std::string& str1, std::string& str2, unsigned step)
 {
-	std::string str = std::string(cblock + strlen(cblock) - cloc, cloc);
 	switch (step)
 	{
 	case 0:
-		str0 = str;
+		str0 = cblock;
 		break;
 	case 1:
-		str1 = str;
+		str1 = cblock;
 		break;
 	case 2:
-		str2 = str;
+		str2 = cblock;
 		break;
 	}
 	cloc = 0;
+	cblock.resize(cloc);
 }
 
 unsigned long long getpindex(unsigned long long index, char* tablestr)
@@ -220,13 +220,8 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 		return 0;
 	}
 	unsigned long long o = 0;
-	unsigned long long clen = 0xff;
-	char* cblock = (char*)calloc(clen, 1);
-	if (!cblock)
-	{
-		return 1;
-	}
-	char* alc = NULL;
+	std::string cblock;
+	cblock.reserve(21);
 	unsigned long long cloc = 0;
 	std::string str0;
 	std::string str1;
@@ -239,11 +234,11 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 		switch (tablestr[index - pindex + i] & 0xff)
 		{
 		case 59: //;
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			step++;
 			break;
 		case 46: //.
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			if (step)
 			{
 				o += std::stoull(str2, 0, 10) - std::stoull(str1, 0, 10);
@@ -260,13 +255,13 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 			range = 0;
 			break;
 		case 45: //-
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			step = 0;
 			range++;
 			rstr = str0;
 			break;
 		case 44: //,
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			if (step)
 			{
 				o += std::stoull(str2, 0, 10) - std::stoull(str1, 0, 10);
@@ -283,25 +278,13 @@ int getfilesize(unsigned long sectorsize, unsigned long long index, char* tables
 			range = 0;
 			break;
 		default: //0-9
-			if (cloc > clen - 2)
-			{
-				clen += 0xff;
-				alc = (char*)realloc(cblock, clen);
-				if (!alc)
-				{
-					free(cblock);
-					return 1;
-				}
-				cblock = alc;
-				alc = NULL;
-			}
+			cblock.resize(cloc + 1);
 			cblock[cloc] = tablestr[index - pindex + i];
 			cblock[cloc + 1] = 0;
 			cloc++;
 			break;
 		}
 	}
-	free(cblock);
 	filesize = o;
 	return 0;
 }
@@ -372,9 +355,8 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 				tablelen = i + 1;
 			}
 		}
-		unsigned long long clen = 0xff;
-		char* cblock = (char*)calloc(clen, 1);
-		char* alc = NULL;
+		std::string cblock;
+		cblock.reserve(21);
 		unsigned long long cloc = 0;
 		std::string str0;
 		std::string str1;
@@ -390,47 +372,35 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 			switch (tablestr[i] & 0xff)
 			{
 			case 59: //;
-				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				resetcloc(cloc, cblock, str0, str1, str2, step);
 				step++;
 				break;
 			case 46: //.
-				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				resetcloc(cloc, cblock, str0, str1, str2, step);
 				addtopartlist(sectorsize, range, step, str0, str1, str2, rstr, usedblocks);
 				step = 0;
 				range = 0;
 				break;
 			case 45: //-
-				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				resetcloc(cloc, cblock, str0, str1, str2, step);
 				step = 0;
 				range++;
 				rstr = str0;
 				break;
 			case 44: //,
-				resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+				resetcloc(cloc, cblock, str0, str1, str2, step);
 				addtopartlist(sectorsize, range, step, str0, str1, str2, rstr, usedblocks);
 				step = 0;
 				range = 0;
 				break;
 			default: //0-9
-				if (cloc > clen - 2)
-				{
-					clen += 0xff;
-					alc = (char*)realloc(cblock, clen);
-					if (!alc)
-					{
-						free(cblock);
-						return 1;
-					}
-					cblock = alc;
-					alc = NULL;
-				}
+				cblock.resize(cloc + 1);
 				cblock[cloc] = tablestr[i];
 				cblock[cloc + 1] = 0;
 				cloc++;
 				break;
 			}
 		}
-		free(cblock);
 	}
 	redetect = false;
 	unsigned long bytecount = 0;
@@ -490,13 +460,13 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 		return 1;
 	}
 	blockstrlen = strlen(s.c_str());
-	char* alc1 = (char*)realloc(block, blockstrlen + 1);
-	if (!alc1)
+	char* alc = (char*)realloc(block, blockstrlen + 1);
+	if (!alc)
 	{
 		return 1;
 	}
-	block = alc1;
-	alc1 = NULL;
+	block = alc;
+	alc = NULL;
 	memcpy(block, s.c_str(), blockstrlen);
 	return 0;
 }
@@ -837,13 +807,8 @@ int desimp(char* charmap, char*& tablestr)
 		}
 	}
 	char* alc = NULL;
-	unsigned long long clen = 0xff;
-	char* cblock = (char*)calloc(clen, 1);
-	if (!cblock)
-	{
-		free(newtablestr);
-		return 1;
-	}
+	std::string cblock;
+	cblock.reserve(21);
 	unsigned long long cloc = 0;
 	std::string str0;
 	std::string str1;
@@ -856,11 +821,11 @@ int desimp(char* charmap, char*& tablestr)
 		switch (tablestr[i] & 0xff)
 		{
 		case 59: //;
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			step++;
 			break;
 		case 46: //.
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			if (!range)
 			{
 				for (unsigned long long i = 0; i < str0.length(); i++)
@@ -873,7 +838,6 @@ int desimp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -896,7 +860,6 @@ int desimp(char* charmap, char*& tablestr)
 							alc = (char*)realloc(newtablestr, newtablelen);
 							if (!alc)
 							{
-								free(cblock);
 								free(newtablestr);
 								return 1;
 							}
@@ -912,7 +875,6 @@ int desimp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -932,7 +894,6 @@ int desimp(char* charmap, char*& tablestr)
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
-						free(cblock);
 						free(newtablestr);
 						return 1;
 					}
@@ -949,7 +910,6 @@ int desimp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -965,7 +925,6 @@ int desimp(char* charmap, char*& tablestr)
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
-						free(cblock);
 						free(newtablestr);
 						return 1;
 					}
@@ -982,7 +941,6 @@ int desimp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -999,7 +957,6 @@ int desimp(char* charmap, char*& tablestr)
 				alc = (char*)realloc(newtablestr, newtablelen);
 				if (!alc)
 				{
-					free(cblock);
 					free(newtablestr);
 					return 1;
 				}
@@ -1010,13 +967,13 @@ int desimp(char* charmap, char*& tablestr)
 			range = 0;
 			break;
 		case 45: //-
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			step = 0;
 			range++;
 			rstr = str0;
 			break;
 		case 44: //,
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			if (!range)
 			{
 				for (unsigned long long i = 0; i < str0.length(); i++)
@@ -1029,7 +986,6 @@ int desimp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -1052,7 +1008,6 @@ int desimp(char* charmap, char*& tablestr)
 							alc = (char*)realloc(newtablestr, newtablelen);
 							if (!alc)
 							{
-								free(cblock);
 								free(newtablestr);
 								return 1;
 							}
@@ -1068,7 +1023,6 @@ int desimp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -1086,7 +1040,6 @@ int desimp(char* charmap, char*& tablestr)
 				alc = (char*)realloc(newtablestr, newtablelen);
 				if (!alc)
 				{
-					free(cblock);
 					free(newtablestr);
 					return 1;
 				}
@@ -1097,26 +1050,13 @@ int desimp(char* charmap, char*& tablestr)
 			range = 0;
 			break;
 		default: //0-9
+			cblock.resize(cloc + 1);
 			cblock[cloc] = tablestr[i];
 			cblock[cloc + 1] = 0;
 			cloc++;
 			break;
 		}
-		if (cloc > clen - 2)
-		{
-			clen += 0xff;
-			alc = (char*)realloc(cblock, clen);
-			if (!alc)
-			{
-				free(cblock);
-				free(newtablestr);
-				return 1;
-			}
-			cblock = alc;
-			alc = NULL;
-		}
 	}
-	free(cblock);
 	char* alc1 = (char*)realloc(tablestr, newloc + 1);
 	if (!alc1)
 	{
@@ -1147,8 +1087,8 @@ int simp(char* charmap, char*& tablestr)
 		}
 	}
 	char* alc = NULL;
-	unsigned long long clen = 0xff;
-	char* cblock = (char*)calloc(clen, 1);
+	std::string cblock;
+	cblock.reserve(21);
 	unsigned long long cloc = 0;
 	std::string str0;
 	std::string str1;
@@ -1160,11 +1100,11 @@ int simp(char* charmap, char*& tablestr)
 		switch (tablestr[i] & 0xff)
 		{
 		case 59: //;
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			step++;
 			break;
 		case 46: //.
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			if (std::strtoull(rstr.c_str(), 0, 10) + 1 != std::strtoull(str0.c_str(), 0, 10) || rstr == "")
 			{
 				if (newtablestr[newloc] == 45)
@@ -1176,7 +1116,6 @@ int simp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -1193,7 +1132,6 @@ int simp(char* charmap, char*& tablestr)
 							alc = (char*)realloc(newtablestr, newtablelen);
 							if (!alc)
 							{
-								free(cblock);
 								free(newtablestr);
 								return 1;
 							}
@@ -1209,7 +1147,6 @@ int simp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -1227,7 +1164,6 @@ int simp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -1243,7 +1179,6 @@ int simp(char* charmap, char*& tablestr)
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
-						free(cblock);
 						free(newtablestr);
 						return 1;
 					}
@@ -1265,7 +1200,6 @@ int simp(char* charmap, char*& tablestr)
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
-						free(cblock);
 						free(newtablestr);
 						return 1;
 					}
@@ -1282,7 +1216,6 @@ int simp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -1298,7 +1231,6 @@ int simp(char* charmap, char*& tablestr)
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
-						free(cblock);
 						free(newtablestr);
 						return 1;
 					}
@@ -1317,7 +1249,6 @@ int simp(char* charmap, char*& tablestr)
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
-						free(cblock);
 						free(newtablestr);
 						return 1;
 					}
@@ -1334,7 +1265,6 @@ int simp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -1350,7 +1280,6 @@ int simp(char* charmap, char*& tablestr)
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
-						free(cblock);
 						free(newtablestr);
 						return 1;
 					}
@@ -1367,7 +1296,6 @@ int simp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -1383,7 +1311,6 @@ int simp(char* charmap, char*& tablestr)
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
-						free(cblock);
 						free(newtablestr);
 						return 1;
 					}
@@ -1395,7 +1322,7 @@ int simp(char* charmap, char*& tablestr)
 			step = 0;
 			break;
 		case 44: //,
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			if (std::strtoull(rstr.c_str(), 0, 10) + 1 != std::strtoull(str0.c_str(), 0, 10) || rstr == "")
 			{
 				if (newtablestr[newloc] == 45)
@@ -1407,7 +1334,6 @@ int simp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -1424,7 +1350,6 @@ int simp(char* charmap, char*& tablestr)
 							alc = (char*)realloc(newtablestr, newtablelen);
 							if (!alc)
 							{
-								free(cblock);
 								free(newtablestr);
 								return 1;
 							}
@@ -1440,7 +1365,6 @@ int simp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -1458,7 +1382,6 @@ int simp(char* charmap, char*& tablestr)
 						alc = (char*)realloc(newtablestr, newtablelen);
 						if (!alc)
 						{
-							free(cblock);
 							free(newtablestr);
 							return 1;
 						}
@@ -1474,7 +1397,6 @@ int simp(char* charmap, char*& tablestr)
 					alc = (char*)realloc(newtablestr, newtablelen);
 					if (!alc)
 					{
-						free(cblock);
 						free(newtablestr);
 						return 1;
 					}
@@ -1494,25 +1416,13 @@ int simp(char* charmap, char*& tablestr)
 			step = 0;
 			break;
 		default: //0-9
-			if (cloc > clen - 2)
-			{
-				clen += 0xff;
-				alc = (char*)realloc(cblock, clen);
-				if (!alc)
-				{
-					free(cblock);
-					return 1;
-				}
-				cblock = alc;
-				alc = NULL;
-			}
+			cblock.resize(cloc + 1);
 			cblock[cloc] = tablestr[i];
 			cblock[cloc + 1] = 0;
 			cloc++;
 			break;
 		}
 	}
-	free(cblock);
 	char* alc1 = (char*)realloc(tablestr, newloc + 1);
 	if (!alc1)
 	{
@@ -1527,7 +1437,7 @@ int simp(char* charmap, char*& tablestr)
 	return 0;
 }
 
-int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::map<unsigned, unsigned> emap, std::map<unsigned, unsigned> dmap)
+int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned long& tablesize, unsigned long long& extratablesize, unsigned long long filenamecount, char*& fileinfo, char*& filenames, char*& tablestr, char*& table, std::unordered_map<unsigned, unsigned> emap, std::unordered_map<unsigned, unsigned> dmap)
 {
 	_LARGE_INTEGER seek = { 0 };
 	SetFilePointerEx(hDisk, seek, NULL, 0);
@@ -2065,13 +1975,8 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 	pindex++;
 	unsigned long long block = 0;
 	unsigned long long rblock = 0;
-	char* alc = NULL;
-	unsigned long long clen = 0xff;
-	char* cblock = (char*)calloc(clen, 1);
-	if (!cblock)
-	{
-		return 1;
-	}
+	std::string cblock;
+	cblock.reserve(21);
 	unsigned long long cloc = 0;
 	std::string str0;
 	std::string str1;
@@ -2084,48 +1989,36 @@ int readwritefile(HANDLE hDisk, unsigned long long sectorsize, unsigned long lon
 		switch (tablestr[index - pindex + i] & 0xff)
 		{
 		case 59: //;
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			step++;
 			break;
 		case 46: //.
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			readwrite(hDisk, sectorsize, disksize, start, step, range, len, str0, str1, str2, rstr, rblock, block, buf, rw);
 			step = 0;
 			range = 0;
 			break;
 		case 45: //-
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			step = 0;
 			range++;
 			rstr = str0;
 			break;
 		case 44: //,
-			resetcloc(cloc, cblock, clen, str0, str1, str2, step);
+			resetcloc(cloc, cblock, str0, str1, str2, step);
 			readwrite(hDisk, sectorsize, disksize, start, step, range, len, str0, str1, str2, rstr, rblock, block, buf, rw);
 			step = 0;
 			range = 0;
 			block++;
 			break;
 		default: //0-9
-			if (cloc > clen - 2)
-			{
-				clen += 0xff;
-				alc = (char*)realloc(cblock, clen);
-				if (!alc)
-				{
-					free(cblock);
-					return 1;
-				}
-				cblock = alc;
-				alc = NULL;
-			}
+			cblock.resize(cloc + 1);
 			cblock[cloc] = tablestr[index - pindex + i];
 			cblock[cloc + 1] = 0;
 			cloc++;
 			break;
 		}
 	}
-	free(cblock);
 	FILETIME ltime;
 	GetSystemTimeAsFileTime(&ltime);
 	LONGLONG pltime = ((PLARGE_INTEGER)&ltime)->QuadPart;
@@ -2273,8 +2166,8 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 	free(ttable);
 
 	char charmap[16] = "0123456789-,.; ";
-	std::map<unsigned, unsigned> emap = {};
-	std::map<unsigned, unsigned> dmap = {};
+	std::unordered_map<unsigned, unsigned> emap = {};
+	std::unordered_map<unsigned, unsigned> dmap = {};
 	unsigned p = 0;
 	unsigned c;
 	for (unsigned i = 0; i < 15; i++)

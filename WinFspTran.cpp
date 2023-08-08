@@ -11,10 +11,10 @@
 #define fail(format, ...) FspServiceLog(EVENTLOG_ERROR_TYPE, format, __VA_ARGS__)
 
 char* charmap = (char*)"0123456789-,.; ";
-std::map<unsigned, unsigned> emap = {};
-std::map<unsigned, unsigned> dmap = {};
-std::map<std::wstring, unsigned long long> opened = {};
-std::map<std::wstring, unsigned long long> allocationsizes = {};
+std::unordered_map<unsigned, unsigned> emap = {};
+std::unordered_map<unsigned, unsigned> dmap = {};
+std::unordered_map<std::wstring, unsigned long long> opened = {};
+std::unordered_map<std::wstring, unsigned long long> allocationsizes = {};
 
 typedef struct
 {
@@ -1186,9 +1186,12 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 
 	if (Flags & FspCleanupDelete)
 	{
-		if (!NT_SUCCESS(CanDelete(FileSystem, FileContext, FileCtx->Path)))
+		if (winattrs & FILE_ATTRIBUTE_DIRECTORY)
 		{
-			return;
+			if (!NT_SUCCESS(CanDelete(FileSystem, FileContext, FileCtx->Path)))
+			{
+				return;
+			}
 		}
 		deletefile(Index, FilenameIndex, FilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
 		if (std::wstring(FileCtx->Path).find(L":") != std::string::npos)
