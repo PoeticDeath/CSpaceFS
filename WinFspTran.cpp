@@ -494,7 +494,7 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM* FileSystem, FSP_FSCTL_VOLUME_INFO
 
 	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
 	getfilenameindex(PWSTR(L":"), SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
-	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameSTRIndex, 0);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 0);
 
 	VolumeInfo->TotalSize = SpFs->DiskSize - static_cast<unsigned long long>(SpFs->TableSize) * SpFs->SectorSize - SpFs->SectorSize;
 
