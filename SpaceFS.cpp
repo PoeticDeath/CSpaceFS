@@ -2189,6 +2189,8 @@ int trunfile(HANDLE hDisk, unsigned long sectorsize, unsigned long long& index, 
 		}
 	}
 
+	handmaps(emap, dmap);
+
 	unsigned long long pos = 0;
 	while (((unsigned)table[pos] & 0xff) != 255)
 	{

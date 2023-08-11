@@ -11,8 +11,6 @@
 #define fail(format, ...) FspServiceLog(EVENTLOG_ERROR_TYPE, format, __VA_ARGS__)
 
 char* charmap = (char*)"0123456789-,.; ";
-std::unordered_map<unsigned, unsigned> Emap = {};
-std::unordered_map<unsigned, unsigned> Dmap = {};
 std::unordered_map<std::wstring, unsigned long long> opened = {};
 std::unordered_map<std::wstring, unsigned long long> allocationsizes = {};
 
@@ -2568,6 +2566,8 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 	memcpy(table + 512, ttable, extratablesize);
 	free(ttable);
 
+	std::unordered_map<unsigned, unsigned> Emap = {};
+	std::unordered_map<unsigned, unsigned> Dmap = {};
 	unsigned p = 0;
 	unsigned c;
 	for (unsigned i = 0; i < 15; i++)
@@ -2580,6 +2580,8 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 			p++;
 		}
 	}
+
+	handmaps(Emap, Dmap);
 
 	unsigned long long pos = 0;
 	while (((unsigned)table[pos] & 0xff) != 255)
@@ -2647,8 +2649,6 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 	memset(SpFs, 0, sizeof(*SpFs));
 
 	// Allocate SpFs ^
-
-	handmaps(Emap, Dmap);
 
 	SpFs->hDisk = hDisk;
 	SpFs->SectorSize = sectorsize;
