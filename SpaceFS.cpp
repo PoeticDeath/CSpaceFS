@@ -1796,8 +1796,8 @@ void readwrite(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksi
 						}
 						else
 						{
-							if (readwritedrive(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, rw, loc)) return;
-							rblock += std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize;
+							if (readwritedrive(hDisk, buf, min(std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, len - rblock), rw, loc)) return;
+							rblock += min(std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, len - rblock);
 						}
 					}
 					else
@@ -1848,8 +1848,8 @@ void readwrite(HANDLE hDisk, unsigned long sectorsize, unsigned long long disksi
 				}
 				else
 				{
-					if (readwritedrive(hDisk, buf, std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, rw, loc)) return;
-					rblock += std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize;
+					if (readwritedrive(hDisk, buf, min(std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, len - rblock), rw, loc)) return;
+					rblock += min(std::strtoull(str2.c_str(), 0, 10) - std::strtoul(str1.c_str(), 0, 10) - start % sectorsize, len - rblock);
 				}
 			}
 			else
