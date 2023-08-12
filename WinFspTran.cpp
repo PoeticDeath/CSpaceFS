@@ -1937,10 +1937,13 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 
 	if (FileCtx->Path[1] != L'\0')
 	{
-		if (!AddDirInfo(SpFs, FileCtx->Path, (PWSTR)L".", Buffer, BufferLength, PBytesTransferred))
+		if (!Marker)
 		{
-			free(ParentDirectoryName);
-			return STATUS_SUCCESS;
+			if (!AddDirInfo(SpFs, FileCtx->Path, (PWSTR)L".", Buffer, BufferLength, PBytesTransferred))
+			{
+				free(ParentDirectoryName);
+				return STATUS_SUCCESS;
+			}
 		}
 
 		if (!Marker || (Marker[0] == L'.' && Marker[1] == L'\0'))
@@ -2056,6 +2059,9 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 					{
 						if (!AddDirInfo(SpFs, FileName, FileNameSuffix, Buffer, BufferLength, PBytesTransferred))
 						{
+							free(FileName);
+							free(FileNameParent);
+							free(FileNameSuffix);
 							return STATUS_SUCCESS;
 						}
 					}
