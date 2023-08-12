@@ -14,7 +14,7 @@ struct SectorSize
 
 std::unordered_map<unsigned, unsigned> emap;
 std::unordered_map<unsigned, unsigned> dmap;
-std::unordered_map<std::string, std::unordered_map<unsigned long, unsigned long long>> partlist;
+std::unordered_map<std::string, unsigned long long> partlist;
 std::unordered_map<std::string, SectorSize> list;
 bool redetect = true;
 
@@ -298,13 +298,11 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 	}
 	if (step)
 	{
-		unsigned long long plist = 0;
 		for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < std::strtoul(str2.c_str(), 0, 10); i++)
 		{
-			plist = partlist[str0][i / 64];
 			if (i / 64 < std::strtoul(str2.c_str(), 0, 10) / 64)
 			{
-				partlist[str0][i / 64] = plist | 0xffffffffffffffff << i % 64;
+				partlist[str0 + ":" + std::to_string(i / 64)] |= 0xffffffffffffffff << i % 64;
 				if (list[str0].unused == sectorsize)
 				{
 					usedblocks++;
@@ -314,7 +312,7 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 			}
 			else
 			{
-				partlist[str0][i / 64] = plist | static_cast<unsigned long long>(1) << i % 64;
+				partlist[str0 + ":" + std::to_string(i / 64)] |= static_cast<unsigned long long>(1) << i % 64;
 				if (list[str0].unused == sectorsize)
 				{
 					usedblocks++;
@@ -405,7 +403,10 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 			}
 			while (bytecount < blocksize)
 			{
-				plist = partlist[t][o / 64];
+				if (!(o % 64))
+				{
+					plist = partlist[t + ":" + std::to_string(o / 64)];
+				}
 				if (!plist)
 				{
 					o += min(blocksize - bytecount, 64);

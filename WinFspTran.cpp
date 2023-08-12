@@ -2479,7 +2479,7 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 	if (hDisk == INVALID_HANDLE_VALUE)
 	{
 		std::cout << "Opening Error: " << GetLastError() << std::endl;
-		return 1;
+		return STATUS_UNSUCCESSFUL;
 	}
 	//std::cout << "Disk opened successfully" << std::endl;
 
@@ -2506,7 +2506,7 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 		if (w != 512)
 		{
 			std::cout << "Formatting Error: " << GetLastError() << std::endl;
-			return 1;
+			return STATUS_UNSUCCESSFUL;
 		}
 		//std::cout << "Formatted disk with sectorsize: " << unsigned(pow(2, 9 + i)) << ", 2**(9+" << i << ")" << std::endl;
 	}
@@ -2526,12 +2526,12 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 	if (!ReadFile(hDisk, bytes, 512, &r, NULL))
 	{
 		std::cout << "Reading Error: " << GetLastError() << std::endl;
-		return 1;
+		return STATUS_UNSUCCESSFUL;
 	}
 	if (r != 512)
 	{
 		std::cout << "Reading Error: " << GetLastError() << std::endl;
-		return 1;
+		return STATUS_UNSUCCESSFUL;
 	}
 	sectorsize = pow(2, 9 + bytes[0]);
 	//std::cout << "Read disk with sectorsize: " << sectorsize << std::endl;
@@ -2542,12 +2542,12 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 	if (!ReadFile(hDisk, ttable, extratablesize, &r, NULL))
 	{
 		std::cout << "Reading table Error: " << GetLastError() << std::endl;
-		return 1;
+		return STATUS_UNSUCCESSFUL;
 	}
 	if (r != extratablesize)
 	{
 		std::cout << "Reading table Error: " << GetLastError() << std::endl;
-		return 1;
+		return STATUS_UNSUCCESSFUL;
 	}
 	//std::cout << "Read table with size: " << tablesize << std::endl;
 
