@@ -497,16 +497,6 @@ static NTSTATUS GetVolumeInfo(FSP_FILE_SYSTEM* FileSystem, FSP_FSCTL_VOLUME_INFO
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, FilenameIndex, 0);
 
 	VolumeInfo->TotalSize = SpFs->DiskSize - static_cast<unsigned long long>(SpFs->TableSize) * SpFs->SectorSize - SpFs->SectorSize;
-
-	unsigned long long DirSize = 0;
-	getfilenameindex(PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
-	Index = gettablestrindex(PWSTR(L"/"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
-	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, DirSize);
-	if (!trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, DirSize, DirSize + 1, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount))
-	{
-		trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, DirSize + 1, DirSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount);
-	}
-
 	VolumeInfo->FreeSize = SpFs->DiskSize - static_cast<unsigned long long>(SpFs->TableSize) * SpFs->SectorSize - SpFs->SectorSize - SpFs->UsedBlocks * SpFs->SectorSize;
 	for (int i = 0; i < FileSize; i++)
 	{

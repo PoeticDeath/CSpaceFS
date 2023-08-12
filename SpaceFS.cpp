@@ -323,11 +323,13 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 	}
 	if (step)
 	{
+		unsigned long long plist = 0;
 		for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < std::strtoul(str2.c_str(), 0, 10); i++)
 		{
+			plist = partlist[str0][i / 64];
 			if (i / 64 < std::strtoul(str2.c_str(), 0, 10) / 64)
 			{
-				partlist[str0][i / 64] |= 0xffffffffffffffff << i % 64;
+				partlist[str0][i / 64] = plist | 0xffffffffffffffff << i % 64;
 				if (list[str0].unused == sectorsize)
 				{
 					usedblocks++;
@@ -337,7 +339,7 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 			}
 			else
 			{
-				partlist[str0][i / 64] |= static_cast<unsigned long long>(1) << i % 64;
+				partlist[str0][i / 64] = plist | static_cast<unsigned long long>(1) << i % 64;
 				if (list[str0].unused == sectorsize)
 				{
 					usedblocks++;
@@ -411,6 +413,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 		}
 	}
 	redetect = false;
+	unsigned long long plist = 0;
 	unsigned long bytecount = 0;
 	unsigned long o = 0;
 	std::string s;
@@ -427,12 +430,13 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 			}
 			while (bytecount < blocksize)
 			{
-				if (!partlist[t][o / 64])
+				plist = partlist[t][o / 64];
+				if (!plist)
 				{
 					o += min(blocksize - bytecount, 64);
 					bytecount += min(blocksize - bytecount, 64);
 				}
-				else if (!(partlist[t][o / 64] & static_cast<unsigned long long>(1) << o % 64))
+				else if (!(plist & static_cast<unsigned long long>(1) << o % 64))
 				{
 					bytecount++;
 					o++;
