@@ -136,31 +136,6 @@ void decode(char*& bytes, unsigned long long len)
 	free(str);
 }
 
-void cleantablestr(char* charmap, char*& tablestr)
-{
-	unsigned long long tablestrlen = strlen(tablestr);
-	unsigned long long i = 0;
-	unsigned charmaplen = strlen(charmap);
-	unsigned b = 0;
-	for (; i < tablestrlen; i++)
-	{
-		b = 1;
-		for (unsigned o = 0; o < charmaplen - 1; o++)
-		{
-			if (tablestr[i] == charmap[o])
-			{
-				b = 0;
-				break;
-			}
-		}
-		if (b == 1)
-		{
-			break;
-		}
-	}
-	tablestr[i] = 0;
-}
-
 int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned long long& extratablesize, char*& table)
 {
 	extratablesize = (tablesize * static_cast<unsigned long long>(sectorsize));
@@ -530,7 +505,6 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		tablestrlen += blockstrlen + o;
 		tablestr[index + alc1len] = 0;
 		o = 1;
-		cleantablestr(charmap, tablestr);
 	}
 	if (size % sectorsize)
 	{
@@ -561,7 +535,6 @@ int alloc(unsigned long sectorsize, unsigned long long disksize, unsigned long t
 		alc2 = NULL;
 		index += blockstrlen + o;
 		tablestr[index + alc1len] = 0;
-		cleantablestr(charmap, tablestr);
 	}
 	free(block);
 	free(alc1);
@@ -662,7 +635,6 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 		{
 			tablestr[index - pindex + off + i] = alc1[i];
 		}
-		cleantablestr(charmap, tablestr);
 		index = index - pindex + off;
 		filesize -= size % sectorsize;
 	}
@@ -710,7 +682,6 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 		{
 			tablestr[index - pindex + off + i] = alc1[i];
 		}
-		cleantablestr(charmap, tablestr);
 		index = index - pindex + off;
 		filesize -= sectorsize;
 	}
@@ -1080,7 +1051,6 @@ int desimp(char* charmap, char*& tablestr)
 	memcpy(tablestr, newtablestr, newloc);
 	tablestr[newloc] = 0;
 	free(newtablestr);
-	cleantablestr(charmap, tablestr);
 	return 0;
 }
 
@@ -1445,7 +1415,6 @@ int simp(char* charmap, char*& tablestr)
 	memcpy(tablestr, newtablestr, newloc);
 	tablestr[newloc] = 0;
 	free(newtablestr);
-	cleantablestr(charmap, tablestr);
 	return 0;
 }
 
@@ -1497,7 +1466,6 @@ int simptable(HANDLE hDisk, unsigned long sectorsize, char* charmap, unsigned lo
 		}
 	}
 	decode(tablestr, tablelen);
-	cleantablestr(charmap, tablestr);
 	DWORD w;
 	WriteFile(hDisk, table, ((tablelen + filenamesizes + 7 + (filenamecount * 35) + 511) / 512) * 512, &w, NULL);
 	if (w != ((tablelen + filenamesizes + 7 + (filenamecount * 35) + 511) / 512) * 512)
@@ -1614,7 +1582,6 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 	}
 	free(gum);
 	filenamecount++;
-	cleantablestr(charmap, tablestr);
 	return 0;
 }
 

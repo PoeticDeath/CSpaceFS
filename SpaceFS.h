@@ -12,7 +12,6 @@ inline unsigned upperchar(unsigned c);
 inline int wcsincmp(const wchar_t* s0, const wchar_t* t0, int n);
 void encode(char*& str, unsigned long long& len);
 void decode(char*& bytes, unsigned long long len);
-void cleantablestr(char* charmap, char*& tablestr);
 int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned long long& extratablesize, char*& table);
 void resetcloc(unsigned long long& cloc, std::string& cblock, std::string& str0, std::string& str1, std::string& str2, unsigned step);
 unsigned long long getpindex(unsigned long long index, char* tablestr);
