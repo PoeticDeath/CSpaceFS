@@ -303,21 +303,21 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 			if (i / 64 < std::strtoul(str2.c_str(), 0, 10) / 64)
 			{
 				partlist[str0 + ":" + std::to_string(i / 64)] |= 0xffffffffffffffff << i % 64;
-				if (list[str0].unused == sectorsize)
-				{
-					usedblocks++;
-				}
 				list[str0].unused -= 64 - i % 64;
 				i += 63 - i % 64;
 			}
 			else
 			{
 				partlist[str0 + ":" + std::to_string(i / 64)] |= static_cast<unsigned long long>(1) << i % 64;
-				if (list[str0].unused == sectorsize)
-				{
-					usedblocks++;
-				}
 				list[str0].unused--;
+			}
+		}
+		if (!list[str0].unused)
+		{
+			usedblocks++;
+			for (unsigned long long i = 0; i < sectorsize / 64; i++)
+			{
+				partlist.erase(str0 + ":" + std::to_string(i));
 			}
 		}
 		//std::cout << str0 << ";" << str1 << ";" << str2 << std::endl;
@@ -422,7 +422,7 @@ int findblock(unsigned long sectorsize, unsigned long long disksize, unsigned lo
 					bytecount = 0;
 					o++;
 				}
-				if (blocksize > sectorsize - o)
+				if (blocksize > sectorsize - (o - bytecount))
 				{
 					break;
 				}
