@@ -703,7 +703,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 			memcpy(SecurityDescriptor, S, *PSecurityDescriptorSize);
 		}
 		free(buf);
-		FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())FspSetSecurityDescriptor);
+		FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())ConvertStringSecurityDescriptorToSecurityDescriptorA);
 	}
 
 	free(Filename);
@@ -794,7 +794,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 			return STATUS_INSUFFICIENT_RESOURCES;
 		}
 		*BufLen = 65536;
-		LPSTR* Buf = (LPSTR*)calloc(static_cast<size_t>(*BufLen) + 1, 1);
+		LPSTR* Buf = (LPSTR*)calloc(*BufLen, 1);
 		if (!Buf)
 		{
 			free(SecurityParentName);
@@ -809,19 +809,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 		createfile(SecurityName, gid, uid, 448, 2048, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
 		getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, SecurityFileIndex, SecurityFileSTRIndex);
 		ConvertSecurityDescriptorToStringSecurityDescriptorA(SecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, BufLen);
-		if (*BufLen > 65536)
-		{
-			free(Buf);
-			Buf = (LPSTR*)calloc(static_cast<size_t>(*BufLen) + 1, 1);
-			if (!Buf)
-			{
-				free(SecurityParentName);
-				free(SecurityName);
-				free(BufLen);
-				return STATUS_INSUFFICIENT_RESOURCES;
-			}
-			ConvertSecurityDescriptorToStringSecurityDescriptorA(SecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, BufLen);
-		}
 		if (std::string(*Buf).find("D:P") == std::string::npos)
 		{
 			unsigned long long FileSize = 0;
@@ -831,17 +818,6 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 			getfilenameindex(SecurityParentName, SpFs->Filenames, SpFs->FilenameCount, SecurityParentDirectoryIndex, SecurityParentDirectorySTRIndex);
 			getfilesize(SpFs->SectorSize, SecurityParentIndex, SpFs->TableStr, FileSize);
 			*BufLen = FileSize;
-			LPSTR* ALC = (LPSTR*)realloc(Buf, static_cast<size_t>(*BufLen) + 1);
-			if (!ALC)
-			{
-				free(SecurityParentName);
-				free(SecurityName);
-				free(BufLen);
-				free(Buf);
-				return STATUS_INSUFFICIENT_RESOURCES;
-			}
-			Buf = ALC;
-			ALC = NULL;
 			readwritefile(SpFs->hDisk, SpFs->SectorSize, SecurityParentIndex, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, SecurityParentDirectoryIndex, 0);
 		}
 		if (trunfile(SpFs->hDisk, SpFs->SectorSize, SecurityIndex, SpFs->TableSize, SpFs->DiskSize, 0, *BufLen, SecurityFileIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, SecurityName, SpFs->Filenames, SpFs->FilenameCount))
@@ -1807,7 +1783,7 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PSEC
 	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, (char*&)buf, SpFs->FileInfo, FilenameIndex, 0);
 	ConvertStringSecurityDescriptorToSecurityDescriptorA(buf, SDDL_REVISION_1, &S, (PULONG)PSecurityDescriptorSize);
 	memcpy(SecurityDescriptor, S, *PSecurityDescriptorSize);
-	FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())FspSetSecurityDescriptor);
+	FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())ConvertStringSecurityDescriptorToSecurityDescriptorA);
 	free(buf);
 
 	return STATUS_SUCCESS;
@@ -1850,7 +1826,6 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 	free(buf);
 
 	PSECURITY_DESCRIPTOR NewSecurityDescriptor;
-	SIZE_T FileSecuritySize;
 	NTSTATUS Result;
 
 	if (SecurityInformation & 1)
@@ -1872,10 +1847,8 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 		return Result;
 	}
 	FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())FspSetSecurityDescriptor);
-	FileSecuritySize = GetSecurityDescriptorLength(NewSecurityDescriptor);
 
-	*PSecurityDescriptorSize = FileSecuritySize;
-	LPSTR* Buf = (LPSTR*)calloc(FileSecuritySize, 1);
+	LPSTR* Buf = (LPSTR*)calloc(1, 65536);
 	if (!Buf)
 	{
 		free(PSecurityDescriptorSize);
@@ -1885,14 +1858,14 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 	ConvertSecurityDescriptorToStringSecurityDescriptorA(NewSecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, (PULONG)PSecurityDescriptorSize);
 	FspDeleteSecurityDescriptor(NewSecurityDescriptor, (NTSTATUS(*)())FspSetSecurityDescriptor);
 
-	if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, FileSecuritySize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, SecurityName, SpFs->Filenames, SpFs->FilenameCount))
+	if (trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, *PSecurityDescriptorSize, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, SecurityName, SpFs->Filenames, SpFs->FilenameCount))
 	{
 		free(PSecurityDescriptorSize);
 		free(SecurityName);
 		free(Buf);
 		return STATUS_DISK_FULL;
 	}
-	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, FileSecuritySize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, FilenameIndex, 1);
+	readwritefile(SpFs->hDisk, SpFs->SectorSize, Index, 0, *PSecurityDescriptorSize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, FilenameIndex, 1);
 	simptable(SpFs->hDisk, SpFs->SectorSize, charmap, SpFs->TableSize, SpFs->ExtraTableSize, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr, SpFs->Table);
 	free(PSecurityDescriptorSize);
 	free(SecurityName);
