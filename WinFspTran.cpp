@@ -1846,7 +1846,14 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, SECU
 		free(SecurityName);
 		return Result;
 	}
-	FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())FspSetSecurityDescriptor);
+	if (SecurityInformation & 1)
+	{
+		FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())SetSecurityDescriptor);
+	}
+	else
+	{
+		FspDeleteSecurityDescriptor(S, (NTSTATUS(*)())FspSetSecurityDescriptor);
+	}
 
 	LPSTR* Buf = (LPSTR*)calloc(1, 65536);
 	if (!Buf)
