@@ -818,6 +818,20 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 			unsigned long long SecurityParentDirectorySTRIndex = 0;
 			getfilenameindex(SecurityParentName, SpFs->Filenames, SpFs->FilenameCount, SecurityParentDirectoryIndex, SecurityParentDirectorySTRIndex);
 			getfilesize(SpFs->SectorSize, SecurityParentIndex, SpFs->TableStr, FileSize);
+			if (*BufLen < FileSize)
+			{
+				LPSTR ALC = (LPSTR)realloc(*Buf, FileSize);
+				if (!ALC)
+				{
+					free(SecurityParentName);
+					free(SecurityName);
+					free(BufLen);
+					free(Buf);
+					return STATUS_INSUFFICIENT_RESOURCES;
+				}
+				*Buf = ALC;
+				ALC = NULL;
+			}
 			*BufLen = FileSize;
 			readwritefile(SpFs->hDisk, SpFs->SectorSize, SecurityParentIndex, 0, FileSize, SpFs->DiskSize, SpFs->TableStr, *Buf, SpFs->FileInfo, SecurityParentDirectoryIndex, 0);
 		}

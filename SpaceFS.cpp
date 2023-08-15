@@ -575,6 +575,7 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 		for (unsigned long long i = 0; i < pindex; i++)
 		{
 			alc2[i] = tablestr[index - pindex + i];
+			alc2[i + 1] = 0;
 		}
 		if (!((filesize - size) % sectorsize))
 		{ // Dealloc entire block out of alc2
