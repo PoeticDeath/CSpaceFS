@@ -809,6 +809,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 		unsigned long long SecurityFileSTRIndex = 0;
 		getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, SecurityFileIndex, SecurityFileSTRIndex);
 		ConvertSecurityDescriptorToStringSecurityDescriptorA(SecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, BufLen);
+		*BufLen = strlen(*Buf);
 		if (std::string(*Buf).find("D:P") == std::string::npos)
 		{
 			unsigned long long FileSize = 0;
