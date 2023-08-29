@@ -809,9 +809,9 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 		getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, SecurityFileIndex, SecurityFileSTRIndex);
 		ConvertSecurityDescriptorToStringSecurityDescriptorA(SecurityDescriptor, SDDL_REVISION_1, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, Buf, BufLen);
 		*BufLen = strlen(*Buf);
+		unsigned long long FileSize = 0;
 		if (std::string(*Buf).find("D:P") == std::string::npos)
 		{
-			unsigned long long FileSize = 0;
 			unsigned long long SecurityParentIndex = gettablestrindex(SecurityParentName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 			unsigned long long SecurityParentDirectoryIndex = 0;
 			unsigned long long SecurityParentDirectorySTRIndex = 0;
@@ -840,6 +840,8 @@ static NTSTATUS Create(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, UINT32 Creat
 			unsigned long long FileIndex = 0;
 			unsigned long long FileSTRIndex = 0;
 			getfilenameindex(Filename, SpFs->Filenames, SpFs->FilenameCount, FileIndex, FileSTRIndex);
+			getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+			trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, 0, FileIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, Filename, SpFs->Filenames, SpFs->FilenameCount);
 			deletefile(Index, FileIndex, FileSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
 			deletefile(SecurityIndex, SecurityFileIndex, SecurityFileSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
 			free(SecurityParentName);
@@ -929,6 +931,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 	unsigned long long NoStreamFileNameSTRIndex = 0;
 	getfilenameindex(FileNameNoStream, SpFs->Filenames, SpFs->FilenameCount, NoStreamFileNameIndex, NoStreamFileNameSTRIndex);
 	std::wstring Path = TempFilename;
+	unsigned long long FileSize = 0;
 
 	for (unsigned long long i = 0; i < SpFs->FilenameCount + O; i++)
 	{
@@ -977,6 +980,8 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 				{
 					getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
 					TempIndex = gettablestrindex(TempFilename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+					getfilesize(SpFs->SectorSize, TempIndex, SpFs->TableStr, FileSize);
+					trunfile(SpFs->hDisk, SpFs->SectorSize, TempIndex, SpFs->TableSize, SpFs->DiskSize, FileSize, 0, TempFilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, TempFilename, SpFs->Filenames, SpFs->FilenameCount);
 					deletefile(TempIndex, TempFilenameIndex, TempFilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
 					Offset -= wcslen(TempFilename) + 1;
 					O++;
@@ -1171,6 +1176,9 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 				return;
 			}
 		}
+		unsigned long long FileSize = 0;
+		getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+		trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, 0, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path, SpFs->Filenames, SpFs->FilenameCount);
 		deletefile(Index, FilenameIndex, FilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
 		if (std::wstring(FileCtx->Path).find(L":") != std::string::npos)
 		{
@@ -1178,6 +1186,8 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 		}
 		Index = gettablestrindex(FileCtx->Path + 1, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 		getfilenameindex(FileCtx->Path + 1, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
+		getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
+		trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, 0, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path + 1, SpFs->Filenames, SpFs->FilenameCount);
 		deletefile(Index, FilenameIndex, FilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
 
 		unsigned long long TempIndex = 0;
@@ -1243,6 +1253,8 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 				{
 					getfilenameindex(Filename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
 					TempIndex = gettablestrindex(Filename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+					getfilesize(SpFs->SectorSize, TempIndex, SpFs->TableStr, FileSize);
+					trunfile(SpFs->hDisk, SpFs->SectorSize, TempIndex, SpFs->TableSize, SpFs->DiskSize, FileSize, 0, TempFilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, Filename, SpFs->Filenames, SpFs->FilenameCount);
 					deletefile(TempIndex, TempFilenameIndex, TempFilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
 					Offset -= wcslen(Filename) + 1;
 					O++;
@@ -1639,6 +1651,8 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 		return STATUS_INSUFFICIENT_RESOURCES;
 	}
 
+	unsigned long long FileSize = 0;
+
 	for (unsigned long long i = 0; i < SpFs->FilenameCount + O; i++)
 	{
 		unsigned long long j = 0;
@@ -1693,6 +1707,8 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 			{
 				getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
 				TempIndex = gettablestrindex(TempFilename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+				getfilesize(SpFs->SectorSize, TempIndex, SpFs->TableStr, FileSize);
+				trunfile(SpFs->hDisk, SpFs->SectorSize, TempIndex, SpFs->TableSize, SpFs->DiskSize, FileSize, 0, TempFilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, TempFilename, SpFs->Filenames, SpFs->FilenameCount);
 				deletefile(TempIndex, TempFilenameIndex, TempFilenameSTRIndex, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, SpFs->TableStr);
 				Offset -= wcslen(TempFilename) + 1;
 				O++;

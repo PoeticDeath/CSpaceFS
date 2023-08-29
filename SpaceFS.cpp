@@ -1628,7 +1628,6 @@ int deletefile(unsigned long long index, unsigned long long filenameindex, unsig
 	}
 	memcpy(filenames + filenamestrindex - filenamelen - 1, filenames + filenamestrindex + end, filenameslen - filenamestrindex - end + 1);
 	filenamecount--;
-	redetect = true;
 	return 0;
 }
 
