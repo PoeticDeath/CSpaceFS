@@ -1619,8 +1619,11 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 			{
 				getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
 				renamefile(TempFilename, (PWSTR)(std::wstring(FileNameParent).replace(0, FileNameLen, NewFilename) + L"/" + FileNameSuffix).c_str(), TempFilenameSTRIndex, SpFs->Filenames);
-				getfilenameindex(TempFilename + 1, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
-				renamefile(TempFilename + 1, (PWSTR)(std::wstring(FileNameParent).replace(0, FileNameLen, NewFilename) + L"/" + FileNameSuffix).c_str() + 1, TempFilenameSTRIndex, SpFs->Filenames);
+				if (std::wstring(TempFilename).find(L":") == std::string::npos)
+				{
+					getfilenameindex(TempFilename + 1, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
+					renamefile(TempFilename + 1, (PWSTR)(std::wstring(FileNameParent).replace(0, FileNameLen, NewFilename) + L"/" + FileNameSuffix).c_str() + 1, TempFilenameSTRIndex, SpFs->Filenames);
+				}
 				Offset += wcslen(std::wstring(FileNameParent).replace(0, FileNameLen, NewFilename).c_str());
 				Offset -= FileNameLen;
 			}
