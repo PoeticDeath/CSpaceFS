@@ -739,9 +739,12 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 				alc = NULL;
 			}
 		}
-		if (!wcsincmp(file, name, filenamesize) && wcslen(file) == filenamesize)
+		if (wcslen(file) == filenamesize)
 		{
-			break;
+			if (!wcsincmp(file, name, filenamesize))
+			{
+				break;
+			}
 		}
 		if ((filenames[filenamestrindex - 1] & 0xff) == 255)
 		{

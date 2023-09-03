@@ -305,11 +305,7 @@ static VOID GetParentName(PWSTR& FileName, PWSTR& Suffix)
 {
 	unsigned Loc = 0;
 	unsigned long long FileNameLen = wcslen(FileName);
-	wchar_t* NewFileName = (wchar_t*)calloc(FileNameLen + 2, sizeof(wchar_t));
-	if (!NewFileName)
-	{
-		return;
-	}
+	wchar_t NewFileName[512] = { 0 };
 
 	for (unsigned i = 0; i < FileNameLen; i++)
 	{
@@ -331,11 +327,7 @@ static VOID GetParentName(PWSTR& FileName, PWSTR& Suffix)
 
 	if (Suffix)
 	{
-		wchar_t* NewSuffix = (wchar_t*)calloc(FileNameLen + 1, sizeof(wchar_t));
-		if (!NewSuffix)
-		{
-			return;
-		}
+		wchar_t NewSuffix[512] = { 0 };
 
 		unsigned i = 0;
 		for (; i < FileNameLen; i++)
@@ -348,7 +340,6 @@ static VOID GetParentName(PWSTR& FileName, PWSTR& Suffix)
 		}
 
 		memcpy(Suffix, NewSuffix, (static_cast<unsigned long long>(i) + 1) * sizeof(wchar_t));
-		free(NewSuffix);
 	}
 
 	if (Loc)
@@ -357,7 +348,6 @@ static VOID GetParentName(PWSTR& FileName, PWSTR& Suffix)
 	}
 	NewFileName[Loc + 1] = '\0';
 	memcpy(FileName, NewFileName, (static_cast<unsigned long long>(Loc) + 2) * sizeof(wchar_t));
-	free(NewFileName);
 }
 
 static NTSTATUS FindDuplicate(SPFS* SpFs, PWSTR FileName)
