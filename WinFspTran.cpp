@@ -387,7 +387,7 @@ static NTSTATUS FindDuplicate(SPFS* SpFs, PWSTR FileName)
 		}
 		Filename[j] = 0;
 
-		if (!wcsincmp(Filename, FileName, FileNameLen) && wcslen(Filename) == FileNameLen)
+		if (!_wcsicmp(Filename, FileName) && wcslen(Filename) == FileNameLen)
 		{
 			free(Filename);
 			return STATUS_OBJECT_NAME_COLLISION;
@@ -961,7 +961,7 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 
 		memcpy(FileNameNoStream, TempFilename, (j + 1) * sizeof(wchar_t));
 		RemoveStream(FileNameNoStream, Suffix);
-		if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLen) && wcslen(FileNameNoStream) == FileNameLen)
+		if (!_wcsicmp(FileNameNoStream, FileCtx->Path) && wcslen(FileNameNoStream) == FileNameLen)
 		{
 			Path = TempFilename;
 			if (Path.find(L":") != std::string::npos)
@@ -1087,7 +1087,7 @@ static NTSTATUS CanDelete(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR 
 
 		memcpy(FileNameParent, Filename, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
-		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLen) && wcslen(FileNameParent) == FileNameLen)
+		if (!_wcsicmp(FileNameParent, FileCtx->Path) && wcslen(FileNameParent) == FileNameLen)
 		{
 			if (wcslen(FileNameSuffix))
 			{
@@ -1237,7 +1237,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 
 			memcpy(FileNameNoStream, Filename, (j + 1) * sizeof(wchar_t));
 			RemoveStream(FileNameNoStream, Suffix);
-			if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLen) && wcslen(FileNameNoStream) == FileNameLen)
+			if (!_wcsicmp(FileNameNoStream, FileCtx->Path) && wcslen(FileNameNoStream) == FileNameLen)
 			{
 				if (std::wstring(Filename).find(L":") != std::string::npos)
 				{
@@ -1455,7 +1455,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	memcpy(NewFilename, NewFileName, NewFileNameLen * sizeof(wchar_t));
 	ReplaceBSWFS(NewFilename);
 
-	if (!(FileNameLen == NewFileNameLen && !wcsincmp(FileCtx->Path, NewFilename, FileNameLen)))
+	if (!(FileNameLen == NewFileNameLen && !_wcsicmp(FileCtx->Path, NewFilename)))
 	{
 		Result = FindDuplicate(SpFs, NewFilename);
 		if (!NT_SUCCESS(Result))
@@ -1613,7 +1613,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 
 		memcpy(FileNameParent, TempFilename, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
-		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLen) && (wcslen(FileNameParent) == FileNameLen || FileNameParent[FileNameLen] == *L"/"))
+		if (!_wcsicmp(FileNameParent, FileCtx->Path) && (wcslen(FileNameParent) == FileNameLen || FileNameParent[FileNameLen] == *L"/"))
 		{
 			if (wcslen(FileNameSuffix))
 			{
@@ -1694,7 +1694,7 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 
 		memcpy(FileNameNoStream, TempFilename, (j + 1) * sizeof(wchar_t));
 		RemoveStream(FileNameNoStream, Suffix);
-		if (!wcsincmp(FileNameNoStream, FileCtx->Path, FileNameLen) && wcslen(FileNameNoStream) == FileNameLen)
+		if (!_wcsicmp(FileNameNoStream, FileCtx->Path) && wcslen(FileNameNoStream) == FileNameLen)
 		{
 			if (std::wstring(TempFilename).find(L":") != std::string::npos)
 			{
@@ -2008,7 +2008,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 
 		memcpy(FileNameParent, FileName, (j + 1) * sizeof(wchar_t));
 		GetParentName(FileNameParent, FileNameSuffix);
-		if (!wcsincmp(FileNameParent, FileCtx->Path, FileNameLen) && wcslen(FileNameParent) == FileNameLen)
+		if (!_wcsicmp(FileNameParent, FileCtx->Path) && wcslen(FileNameParent) == FileNameLen)
 		{
 			FileNameSuffixLen = wcslen(FileNameSuffix);
 			if (FileNameSuffixLen)
@@ -2017,7 +2017,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PW
 				{
 					if (!HitMarker)
 					{
-						if (!wcsincmp(FileNameSuffix, Marker, MarkerLen) && FileNameSuffixLen == MarkerLen)
+						if (!_wcsicmp(FileNameSuffix, Marker) && FileNameSuffixLen == MarkerLen)
 						{
 							HitMarker = 1;
 						}
@@ -2246,7 +2246,7 @@ static NTSTATUS GetStreamInfo(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PV
 
 		memcpy(Filename, FileName, (j + 1) * sizeof(wchar_t));
 		RemoveStream(FileName, Suffix);
-		if (!wcsincmp(FileName, FileNameNoStream, FileNameLen) && wcslen(FileName) == FileNameLen)
+		if (!_wcsicmp(FileName, FileNameNoStream) && wcslen(FileName) == FileNameLen)
 		{
 			if (std::wstring(Filename).find(L":") != std::wstring::npos)
 			{
