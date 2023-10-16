@@ -648,8 +648,6 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 {
 	unsigned long long filenamesize = wcslen(filename);
 	unsigned long long tempnamesize = max(filenamesize, 0xff);
-	filenameindex = 0;
-	filenamestrindex = 0;
 	wchar_t* file = (wchar_t*)calloc(tempnamesize + 1, sizeof(wchar_t));
 	if (!file)
 	{

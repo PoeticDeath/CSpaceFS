@@ -528,6 +528,8 @@ static NTSTATUS SetVolumeLabel_(FSP_FILE_SYSTEM* FileSystem, PWSTR Label, FSP_FS
 	VolumeInfo->TotalSize = SpFs->DiskSize - static_cast<unsigned long long>(SpFs->TableSize) * SpFs->SectorSize - SpFs->SectorSize;
 
 	unsigned long long DirSize = 0;
+	FilenameIndex = 0;
+	FilenameSTRIndex = 0;
 	getfilenameindex(PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 	Index = gettablestrindex(PWSTR(L"/"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, DirSize);
@@ -674,6 +676,8 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM* FileSystem, PWSTR FileName, P
 		PWSTR Suffix = NULL;
 		RemoveStream(SecurityName, Suffix);
 		PSECURITY_DESCRIPTOR S;
+		FilenameIndex = 0;
+		FilenameSTRIndex = 0;
 		getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 		unsigned long long Index = gettablestrindex(SecurityName, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 		free(SecurityName);
@@ -968,6 +972,8 @@ static NTSTATUS Overwrite(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, UINT32
 			{
 				if (!opened[Path])
 				{
+					TempFilenameIndex = 0;
+					TempFilenameSTRIndex = 0;
 					getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
 					TempIndex = gettablestrindex(TempFilename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 					getfilesize(SpFs->SectorSize, TempIndex, SpFs->TableStr, FileSize);
@@ -1175,6 +1181,8 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 			return;
 		}
 		Index = gettablestrindex(FileCtx->Path + 1, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
+		FilenameIndex = 0;
+		FilenameSTRIndex = 0;
 		getfilenameindex(FileCtx->Path + 1, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 		getfilesize(SpFs->SectorSize, Index, SpFs->TableStr, FileSize);
 		trunfile(SpFs->hDisk, SpFs->SectorSize, Index, SpFs->TableSize, SpFs->DiskSize, FileSize, 0, FilenameIndex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, FileCtx->Path + 1, SpFs->Filenames, SpFs->FilenameCount);
@@ -1241,6 +1249,8 @@ static VOID Cleanup(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR FileNa
 			{
 				if (std::wstring(Filename).find(L":") != std::string::npos)
 				{
+					TempFilenameIndex = 0;
+					TempFilenameSTRIndex = 0;
 					getfilenameindex(Filename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
 					TempIndex = gettablestrindex(Filename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 					getfilesize(SpFs->SectorSize, TempIndex, SpFs->TableStr, FileSize);
@@ -1510,6 +1520,8 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 	memcpy(SecurityName, FileCtx->Path, FileNameLen * sizeof(wchar_t));
 	RemoveFirst(SecurityName);
 	RemoveStream(SecurityName, Suffix);
+	FilenameIndex = 0;
+	FilenameSTRIndex = 0;
 	getfilenameindex(SecurityName, SpFs->Filenames, SpFs->FilenameCount, FilenameIndex, FilenameSTRIndex);
 
 	PWSTR NewSecurityName = (PWSTR)calloc(NewFileNameLen + 1, sizeof(wchar_t));
@@ -1617,10 +1629,14 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 		{
 			if (wcslen(FileNameSuffix))
 			{
+				TempFilenameIndex = 0;
+				TempFilenameSTRIndex = 0;
 				getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
 				renamefile(TempFilename, (PWSTR)(std::wstring(FileNameParent).replace(0, FileNameLen, NewFilename) + L"/" + FileNameSuffix).c_str(), TempFilenameSTRIndex, SpFs->Filenames);
 				if (std::wstring(TempFilename).find(L":") == std::string::npos)
 				{
+					TempFilenameIndex = 0;
+					TempFilenameSTRIndex = 0;
 					getfilenameindex(TempFilename + 1, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
 					renamefile(TempFilename + 1, (PWSTR)(std::wstring(FileNameParent).replace(0, FileNameLen, NewFilename) + L"/" + FileNameSuffix).c_str() + 1, TempFilenameSTRIndex, SpFs->Filenames);
 				}
@@ -1698,6 +1714,8 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM* FileSystem, PVOID FileContext, PWSTR Fil
 		{
 			if (std::wstring(TempFilename).find(L":") != std::string::npos)
 			{
+				TempFilenameIndex = 0;
+				TempFilenameSTRIndex = 0;
 				getfilenameindex(TempFilename, SpFs->Filenames, SpFs->FilenameCount, TempFilenameIndex, TempFilenameSTRIndex);
 				TempIndex = gettablestrindex(TempFilename, SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 				getfilesize(SpFs->SectorSize, TempIndex, SpFs->TableStr, FileSize);
@@ -2671,6 +2689,8 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 		readwritefile(SpFs->hDisk, SpFs->SectorSize, index, 0, 23, SpFs->DiskSize, SpFs->TableStr, buf, SpFs->FileInfo, filenameindex, 1);
 	}
 
+	filenameindex = 0;
+	filenamestrindex = 0;
 	getfilenameindex(PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount, filenameindex, filenamestrindex);
 	index = gettablestrindex(PWSTR(L"/"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	getfilesize(SpFs->SectorSize, index, SpFs->TableStr, filesize);
@@ -2679,6 +2699,8 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 		trunfile(SpFs->hDisk, SpFs->SectorSize, index, SpFs->TableSize, SpFs->DiskSize, filesize + 1, filesize, filenameindex, charmap, SpFs->TableStr, SpFs->FileInfo, SpFs->UsedBlocks, PWSTR(L"/"), SpFs->Filenames, SpFs->FilenameCount);
 	}
 
+	filenameindex = 0;
+	filenamestrindex = 0;
 	getfilenameindex(PWSTR(L":"), SpFs->Filenames, SpFs->FilenameCount, filenameindex, filenamestrindex);
 	index = gettablestrindex(PWSTR(L":"), SpFs->Filenames, SpFs->TableStr, SpFs->FilenameCount);
 	getfilesize(SpFs->SectorSize, index, SpFs->TableStr, filesize);
