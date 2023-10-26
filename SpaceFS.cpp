@@ -17,6 +17,8 @@ std::unordered_map<unsigned, unsigned> dmap;
 std::unordered_map<std::string, unsigned long long> partlist;
 std::unordered_map<std::string, SectorSize> list;
 bool redetect = true;
+std::unordered_map<std::wstring, unsigned long long> filenameindexlist;
+std::unordered_map<std::wstring, unsigned long long> filenamestrindexlist;
 
 void handmaps(std::unordered_map<unsigned, unsigned> Emap, std::unordered_map<unsigned, unsigned> Dmap)
 {
@@ -646,6 +648,12 @@ int dealloc(unsigned long sectorsize, char* charmap, char*& tablestr, unsigned l
 
 void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filenamecount, unsigned long long& filenameindex, unsigned long long& filenamestrindex)
 {
+	if (filenameindexlist[std::wstring(filename)] != 0)
+	{
+		filenameindex = filenameindexlist[std::wstring(filename)];
+		filenamestrindex = filenamestrindexlist[std::wstring(filename)];
+		return;
+	}
 	unsigned long long filenamesize = wcslen(filename);
 	unsigned long long tempnamesize = max(filenamesize, 0xff);
 	wchar_t* file = (wchar_t*)calloc(tempnamesize + 1, sizeof(wchar_t));
@@ -701,6 +709,8 @@ void getfilenameindex(PWSTR filename, char* filenames, unsigned long long filena
 		}
 	}
 	filenamestrindex--;
+	filenameindexlist[std::wstring(filename)] = filenameindex;
+	filenamestrindexlist[std::wstring(filename)] = filenamestrindex;
 	free(file);
 	free(name);
 }
@@ -1534,6 +1544,8 @@ int createfile(PWSTR filename, unsigned long gid, unsigned long uid, unsigned lo
 	{
 		fileinfo[(filenamecount + 1) * 24 + i] = gum[i];
 	}
+	filenameindexlist[filename] = filenamecount;
+	filenamestrindexlist[filename] = oldlen + filestrlen;
 	free(gum);
 	filenamecount++;
 	return 0;
@@ -1580,6 +1592,8 @@ int deletefile(unsigned long long index, unsigned long long filenameindex, unsig
 	}
 	memcpy(filenames + filenamestrindex - filenamelen - 1, filenames + filenamestrindex + end, filenameslen - filenamestrindex - end + 1);
 	filenamecount--;
+	filenameindexlist.clear();
+	filenamestrindexlist.clear();
 	return 0;
 }
 
@@ -1633,6 +1647,8 @@ int renamefile(PWSTR oldfilename, PWSTR newfilename, unsigned long long& filenam
 	}
 	memcpy(filenames + filenamestrindex - coldfilenamelen + cnewfilenamelen, files, afterlen + 2);
 	filenamestrindex -= coldfilenamelen - cnewfilenamelen;
+	filenameindexlist.clear();
+	filenamestrindexlist.clear();
 	free(coldfilename);
 	free(cnewfilename);
 	free(files);
