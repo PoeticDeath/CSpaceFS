@@ -252,17 +252,25 @@ void addtopartlist(unsigned long sectorsize, unsigned range, unsigned step, std:
 	}
 	if (step)
 	{
-		for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < std::strtoul(str2.c_str(), 0, 10); i++)
+		unsigned long o = std::strtoul(str2.c_str(), 0, 10);
+		bool start = true;
+		std::string str;
+		for (unsigned long i = std::strtoul(str1.c_str(), 0, 10); i < o; i++)
 		{
-			if (i / 64 < std::strtoul(str2.c_str(), 0, 10) / 64)
+			if (!(i % 64) || start)
 			{
-				partlist[str0 + ":" + std::to_string(i / 64)] |= 0xffffffffffffffff << i % 64;
+				str = str0 + ":" + std::to_string(i / 64);
+				start = false;
+			}
+			if (i / 64 < o / 64)
+			{
+				partlist[str] |= 0xffffffffffffffff << i % 64;
 				list[str0].unused -= 64 - i % 64;
 				i += 63 - i % 64;
 			}
 			else
 			{
-				partlist[str0 + ":" + std::to_string(i / 64)] |= static_cast<unsigned long long>(1) << i % 64;
+				partlist[str] |= static_cast<unsigned long long>(1) << i % 64;
 				list[str0].unused--;
 			}
 		}
