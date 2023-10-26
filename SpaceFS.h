@@ -7,7 +7,7 @@
 #include <time.h>
 #include <string>
 
-void handmaps(std::unordered_map<unsigned, unsigned> Emap, std::unordered_map<unsigned, unsigned> Dmap);
+void handmaps(std::unordered_map<unsigned, unsigned> Emap, std::unordered_map<unsigned, unsigned> Dmap, std::unordered_map<std::wstring, unsigned long long>& filenameindexlist);
 void encode(char*& str, unsigned long long& len);
 void decode(char*& bytes, unsigned long long len);
 int settablesize(unsigned long sectorsize, unsigned long& tablesize, unsigned long long& extratablesize, char*& table);

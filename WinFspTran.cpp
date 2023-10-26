@@ -13,6 +13,7 @@
 char* charmap = (char*)"0123456789-,.; ";
 std::unordered_map<std::wstring, unsigned long long> opened = {};
 std::unordered_map<std::wstring, unsigned long long> allocationsizes = {};
+std::unordered_map<std::wstring, unsigned long long> filenameindexlist = {};
 
 typedef struct
 {
@@ -352,6 +353,10 @@ static VOID GetParentName(PWSTR& FileName, PWSTR& Suffix)
 
 static NTSTATUS FindDuplicate(SPFS* SpFs, PWSTR FileName)
 {
+	if (filenameindexlist[std::wstring(FileName)] != 0)
+	{
+		return STATUS_OBJECT_NAME_COLLISION;
+	}
 	unsigned long long Offset = 0;
 	unsigned long long FileNameLen = wcslen(FileName), FileNameLenT = max(FileNameLen, 0xff);
 	PWSTR ALC = NULL;
@@ -2562,7 +2567,7 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 		}
 	}
 
-	handmaps(Emap, Dmap);
+	handmaps(Emap, Dmap, filenameindexlist);
 
 	unsigned long long pos = 0;
 	while (((unsigned)table[pos] & 0xff) != 255)
