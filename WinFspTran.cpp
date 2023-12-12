@@ -2662,6 +2662,11 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 		createfile(PWSTR(L"/"), 545, 545, 16877, winattrs, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
 	}
 
+	if (NT_SUCCESS(FindDuplicate(SpFs, PWSTR(L":"))))
+	{
+		createfile(PWSTR(L":"), 545, 545, 448, 0, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
+	}
+
 	if (NT_SUCCESS(FindDuplicate(SpFs, PWSTR(L"?"))))
 	{
 		createfile(PWSTR(L"?"), 545, 545, 16877, 0, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
@@ -2669,11 +2674,6 @@ static NTSTATUS SpFsCreate(PWSTR Path, PWSTR MountPoint, UINT32 SectorSize, UINT
 	else
 	{
 		std::cout << "Careful the disk was unmounted improperly." << std::endl;
-	}
-
-	if (NT_SUCCESS(FindDuplicate(SpFs, PWSTR(L":"))))
-	{
-		createfile(PWSTR(L":"), 545, 545, 448, 0, SpFs->FilenameCount, SpFs->FileInfo, SpFs->Filenames, charmap, SpFs->TableStr);
 	}
 
 	// Create the root directory if needed ^
